@@ -1,10 +1,11 @@
 import React from 'react'
-import { TODAY, abonStatus, fmtDate, getActiveAbon, visitedTodayAny } from '../utils'
+import { TODAY, abonStatus, fmtDate, getActiveAbon, visitedTodayAny, getMemberDebt } from '../utils'
 
 export default function HomePage({ members, abons, payments, role, uname, onNavigate }) {
 
   // Stats
   const active   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && abonStatus(a) === 'active' }).length
+  const frozen   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && abonStatus(a) === 'frozen' }).length
   const ending   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && ['ending','expired'].includes(abonStatus(a)) }).length
   const checked  = members.filter(m => visitedTodayAny(m.id, abons)).length
   const todayAll = payments.filter(p => p.date === TODAY)
@@ -21,6 +22,11 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
     const a = getActiveAbon(m.id, abons)
     return a && ['ending','expired'].includes(abonStatus(a))
   })
+
+  // Debts summary (абон. + ручні рахуються лише через manualDebts на сторінці Фінанси,
+  // тут показуємо тільки борги по абонементах для швидкого огляду)
+  const debtCount = members.filter(m => getMemberDebt(m.id, abons, payments) > 0).length
+  const totalDebt = members.reduce((s, m) => s + getMemberDebt(m.id, abons, payments), 0)
 
   return (
     <div className="pg">
@@ -40,6 +46,10 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
             <div className="sv" style={{ color: ending > 0 ? 'var(--ylw)' : 'var(--txt2)' }}>{ending}</div>
             <div className="sl">⚠️ Закінчуються</div>
           </div>
+          <div className="sc clickable" onClick={() => onNavigate('members', 'frozen')}>
+            <div className="sv" style={{ color: '#88aaff' }}>{frozen}</div>
+            <div className="sl">❄️ Заморожені</div>
+          </div>
         </>}
       </div>
 
@@ -57,6 +67,15 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
             <div className="sv">{todayCash + todayCard}</div>
             <div className="sl">💰 Разом сьогодні</div>
           </div>
+        </div>
+      )}
+
+      {/* Debts summary */}
+      {role === 'admin' && debtCount > 0 && (
+        <div className="card">
+          <div className="ct">Борги</div>
+          <div className="irow"><span className="ikey">Всього боржників</span><span className="ival" style={{ color: 'var(--red)' }}>{debtCount}</span></div>
+          <div className="irow"><span className="ikey">Загальна сума</span><span className="ival" style={{ color: 'var(--ylw)' }}>{totalDebt} грн</span></div>
         </div>
       )}
 

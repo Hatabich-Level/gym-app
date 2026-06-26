@@ -1,27 +1,58 @@
 import React, { useState } from 'react'
 import {
-  TODAY, fmtDate, uid, addCalMonths, abonStatus, getActiveAbon,
-  HALL_FEE, STATUS_LABEL, STATUS_TAG, nowTime
+  TODAY, fmtDate, uid, addCalMonths, addDays, daysDiff, abonStatus, getActiveAbon,
+  getActiveTrainerAbon, getMemberDebt, STATUS_LABEL, STATUS_TAG, nowTime
 } from '../utils'
-import { Modal, FRow, MethodToggle, MethodPill, Ava, ProgressBar, IconBtn } from '../components/UI'
-import { api } from '../api'
+import { Modal, FRow, MethodToggle, MethodPill, ProgressBar, IconBtn } from '../components/UI'
 
 export default function MemberDetail({
   memberId, members, abons, payments, role, uname,
   onBack, onSaveMember, onDeleteMember, pushAbons, pushPayment, deletePayment, loading
 }) {
   const mem = members.find(m => m.id === memberId)
-  const [modal, setModal] = useState(null) // 'edit'|'abon'|'pay'|'extend'
+  const [modal, setModal] = useState(null) // 'edit'|'abon'|'pay'|'extend'|'freeze'
 
   if (!mem) return null
 
-  const allAbons = abons.filter(a => a.memberId === memberId).sort((a,b) => (b.startDate||'').localeCompare(a.startDate||''))
+  const allAbons = abons.filter(a => a.memberId === memberId && a.type !== 'trainer')
+    .sort((a,b) => (b.startDate||'').localeCompare(a.startDate||''))
   const activeAbon = getActiveAbon(memberId, abons)
   const st = activeAbon ? abonStatus(activeAbon) : null
+  const trainerAbon = getActiveTrainerAbon(memberId, abons)
+  const debt = activeAbon ? getMemberDebt(memberId, abons, payments) : 0
+
+  // Історія (все, крім поточного активного запису)
+  const history = allAbons.filter(a => a.id !== (activeAbon && activeAbon.id))
 
   const memberPays = payments
-    .filter(p => p.memberId === memberId || (p.kind === 'session' && (p.splitClients||[]).includes(mem.name)))
+    .filter(p => p.memberId === memberId && p.kind !== 'session')
     .sort((a,b) => (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')))
+    .slice(0, 10)
+
+  async function doFreeze(startDate) {
+    const updated = { ...activeAbon, frozen: true, freezeStart: startDate }
+    await pushAbons([updated])
+    setModal(null)
+  }
+
+  async function doUnfreeze() {
+    const frozenDays = daysDiff(activeAbon.freezeStart, TODAY)
+    const freezeLog = [...(activeAbon.freezeLog || []), { from: activeAbon.freezeStart, to: TODAY, days: frozenDays }]
+    const updated = {
+      ...activeAbon,
+      frozen: false,
+      freezeStart: null,
+      extraDays: (activeAbon.extraDays || 0) + frozenDays,
+      freezeLog,
+      endDate: activeAbon.type === 'month' && activeAbon.endDate ? addDays(activeAbon.endDate, frozenDays) : activeAbon.endDate
+    }
+    await pushAbons([updated])
+  }
+
+  async function deleteCurrentAbon() {
+    if (!confirm(`Стерти поточний абонемент клієнта ${mem.name}? Цю дію не можна скасувати.`)) return
+    await pushAbons([{ ...activeAbon, active: false }])
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 40 }}>
@@ -33,8 +64,8 @@ export default function MemberDetail({
           </svg>
           Назад
         </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 16 }}>{mem.name}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mem.name}</div>
           <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{mem.phone || ''}</div>
         </div>
         {role === 'admin' && (
@@ -45,22 +76,45 @@ export default function MemberDetail({
       </div>
 
       <div style={{ padding: 14 }}>
+        {/* Trainer abon (заняття) — показуємо окремо, якщо є */}
+        {trainerAbon && (
+          <div className="card">
+            <div className="ct">🎫 Абонемент від тренера</div>
+            <div className="irow">
+              <span className="ikey">Залишилось занять</span>
+              <span className="ival" style={{ color: 'var(--grn)', fontWeight: 700 }}>{trainerAbon.sessionsLeft} з {trainerAbon.totalSessions}</span>
+            </div>
+            {trainerAbon.price > 0 && (
+              <div className="irow"><span className="ikey">Ціна</span><span className="ival">{trainerAbon.price} грн</span></div>
+            )}
+            <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(trainerAbon.startDate)}</span></div>
+          </div>
+        )}
+
+        {/* Freeze banner */}
+        {activeAbon && activeAbon.frozen && (
+          <div className="frozen-banner">
+            ❄️ Заморожено {daysDiff(activeAbon.freezeStart, TODAY)} дн. тому (з {fmtDate(activeAbon.freezeStart)}). Дні будуть додані до абонементу після розморозки.
+          </div>
+        )}
+
         {/* Active abon card */}
         {activeAbon ? (
           <ActiveAbonCard
-            abon={activeAbon} status={st} role={role}
+            abon={activeAbon} status={st} role={role} debt={debt}
             onPay={() => setModal('pay')}
             onExtend={() => setModal('extend')}
-            onFreeze={() => {
-              const updated = { ...activeAbon, frozen: !activeAbon.frozen }
-              pushAbons([updated])
-            }}
+            onFreeze={() => setModal('freeze')}
+            onUnfreeze={doUnfreeze}
+            onDeleteAbon={deleteCurrentAbon}
           />
         ) : (
           role === 'admin' && (
-            <button className="btn btn-acc" style={{ marginBottom: 12 }} onClick={() => setModal('abon')}>
-              + Додати абонемент
-            </button>
+            <div className="card" style={{ textAlign: 'center', padding: 28 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>🎫</div>
+              <div style={{ fontSize: 15, marginBottom: 16, color: 'var(--txt2)' }}>Немає активного абонементу</div>
+              <button className="btn btn-acc" onClick={() => setModal('abon')}>+ Додати абонемент</button>
+            </div>
           )
         )}
 
@@ -70,15 +124,20 @@ export default function MemberDetail({
           </button>
         )}
 
-        {/* Abon history */}
-        {allAbons.length > 0 && (
+        {/* Visit history */}
+        {activeAbon && (activeAbon.visits || []).length > 0 && (
           <div className="card">
-            <div className="ct">Абонементи</div>
-            {allAbons.map(ab => <AbonRow key={ab.id} abon={ab} />)}
+            <div className="ct">Відвідування</div>
+            {[...activeAbon.visits].reverse().slice(0, 15).map((v, i) => (
+              <div key={i} className="vitem">
+                <span>{fmtDate(v.date)}</span>
+                <span style={{ color: 'var(--txt2)' }}>{v.time}</span>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Payments */}
+        {/* Payments tied to abon (history) */}
         {memberPays.length > 0 && (
           <div className="card">
             <div className="ct">Платежі</div>
@@ -86,7 +145,7 @@ export default function MemberDetail({
               <div key={p.id} className="payment-item">
                 <div>
                   <div>{fmtDate(p.date)}{p.time ? ' ' + p.time : ''}</div>
-                  <div style={{ color: 'var(--txt2)', fontSize: 11 }}>{p.note || (p.kind === 'session' ? 'Заняття' : 'Абонемент')}</div>
+                  <div style={{ color: 'var(--txt2)', fontSize: 11 }}>{p.note || 'Абонемент'}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <MethodPill method={p.method} />
@@ -97,6 +156,14 @@ export default function MemberDetail({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Abon history */}
+        {history.length > 0 && (
+          <div className="card">
+            <div className="ct">Історія абонементів</div>
+            {history.map(ab => <AbonRow key={ab.id} abon={ab} />)}
           </div>
         )}
 
@@ -123,8 +190,10 @@ export default function MemberDetail({
         <AddAbonModal
           memberId={memberId}
           activeAbon={activeAbon}
+          memberName={mem.name}
           onSave={async (ab, payment) => {
-            await pushAbons([ab])
+            if (activeAbon) await pushAbons([{ ...activeAbon, active: false }, ab])
+            else await pushAbons([ab])
             if (payment) await pushPayment(payment)
             setModal(null)
           }}
@@ -134,6 +203,7 @@ export default function MemberDetail({
       {modal === 'pay' && activeAbon && (
         <PayAbonModal
           abon={activeAbon}
+          debt={debt}
           memberId={memberId}
           memberName={mem.name}
           onSave={async (p, updatedAbon) => {
@@ -157,75 +227,100 @@ export default function MemberDetail({
           onClose={() => setModal(null)}
         />
       )}
+      {modal === 'freeze' && activeAbon && (
+        <FreezeModal
+          abon={activeAbon}
+          onSave={doFreeze}
+          onClose={() => setModal(null)}
+        />
+      )}
     </div>
   )
 }
 
-function ActiveAbonCard({ abon, status, role, onPay, onExtend, onFreeze }) {
+// ── Active abon card ──────────────────────────────────────────────────────────
+function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, onUnfreeze, onDeleteAbon }) {
   const st = status
   const tagClass = STATUS_TAG[st] || 'tag-gray'
   const isMonth = abon.type === 'month'
   const isVisit = abon.type === 'visit'
-  const isTrainer = abon.type === 'trainer'
 
   const visits = abon.visits || []
   const todayVisit = visits.find(v => v.date === TODAY)
+  const monthVisits = visits.filter(v => v.date.slice(0,7) === TODAY.slice(0,7))
+
+  const rem = isMonth && abon.endDate ? daysDiff(TODAY, abon.endDate) : null
+  const totalSpan = isMonth && abon.startDate && abon.endDate ? Math.max(1, daysDiff(abon.startDate, abon.endDate)) : null
+  const usedSpan = isMonth && abon.startDate ? Math.min(totalSpan || 1, Math.max(0, daysDiff(abon.startDate, TODAY))) : null
+  const pct = totalSpan ? Math.round((usedSpan / totalSpan) * 100) : 0
 
   return (
     <div className="card" style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div style={{ fontWeight: 600, fontSize: 15 }}>
-          {isMonth ? '📅 Місячний' : isVisit ? '🎟 Разовий' : isTrainer ? '🎫 Тренер' : 'Абонемент'}
+          {isMonth ? '📅 Місячний безліміт' : isVisit ? '🎟 Разовий' : 'Абонемент'}
         </div>
         <span className={`ai-tag ${tagClass}`}>{STATUS_LABEL[st] || st}</span>
       </div>
 
-      {isMonth && abon.endDate && (
-        <div className="irow" style={{ paddingTop: 4 }}>
-          <span className="ikey">До</span>
-          <span className="ival">{fmtDate(abon.endDate)}</span>
-        </div>
+      {isMonth && (
+        <>
+          <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(abon.startDate)}</span></div>
+          <div className="irow"><span className="ikey">Закінчення</span><span className="ival">{fmtDate(abon.endDate)}</span></div>
+          {abon.extraDays > 0 && (
+            <div className="irow"><span className="ikey">Додано (заморозка)</span><span className="ival" style={{ color: '#88aaff' }}>+{abon.extraDays} дн.</span></div>
+          )}
+          {(st === 'active' || st === 'ending') && rem !== null && (
+            <>
+              <div className="irow">
+                <span className="ikey">Залишилось</span>
+                <span className="ival" style={{ color: rem <= 3 ? 'var(--ylw)' : 'var(--grn)' }}>{rem} дн.</span>
+              </div>
+              <ProgressBar value={usedSpan} max={totalSpan} color={rem <= 3 ? 'var(--ylw)' : 'var(--acc)'} />
+            </>
+          )}
+          <div className="irow" style={{ paddingTop: 10 }}>
+            <span className="ikey">Відвідувань цього місяця</span>
+            <span className="ival">{monthVisits.length}</span>
+          </div>
+        </>
       )}
-      {isTrainer && (
-        <div className="irow">
-          <span className="ikey">Залишилось</span>
-          <span className="ival" style={{ color: 'var(--acc)' }}>{abon.sessionsLeft} / {abon.totalSessions} занять</span>
-        </div>
-      )}
+
       {abon.price > 0 && (
         <div className="irow">
           <span className="ikey">Вартість</span>
           <span className="ival">{abon.price} грн</span>
         </div>
       )}
-      {abon.paid > 0 && (
+      {debt > 0 ? (
         <div className="irow">
-          <span className="ikey">Оплачено</span>
-          <span className="ival" style={{ color: 'var(--grn)' }}>{abon.paid} грн</span>
+          <span className="ikey">Борг</span>
+          <span className="ival" style={{ color: 'var(--ylw)' }}>{debt} грн</span>
+        </div>
+      ) : abon.price > 0 && (
+        <div className="irow">
+          <span className="ikey">Статус оплати</span>
+          <span className="ival" style={{ color: 'var(--grn)' }}>✅ Оплачено повністю</span>
         </div>
       )}
-      {abon.price > 0 && abon.paid < abon.price && (
-        <>
-          <div className="irow">
-            <span className="ikey">Борг</span>
-            <span className="ival" style={{ color: 'var(--red)' }}>{abon.price - (abon.paid||0)} грн</span>
-          </div>
-          <ProgressBar value={abon.paid||0} max={abon.price} color="var(--grn)" />
-        </>
-      )}
+
       {todayVisit && (
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--grn)' }}>✅ Відмічено сьогодні о {todayVisit.time}</div>
       )}
 
       {role === 'admin' && (
         <div className="grid2" style={{ marginTop: 10, marginBottom: 0 }}>
-          {abon.price > 0 && abon.paid < abon.price && (
+          {debt > 0 && (
             <button className="btn btn-grn btn-sm" onClick={onPay}>💰 Оплата</button>
           )}
-          {isMonth && <button className="btn btn-acc btn-sm" onClick={onExtend}>🔄 Продовжити</button>}
-          <button className={`btn btn-sm ${abon.frozen ? 'btn-ylw' : 'btn-ice'}`} onClick={onFreeze}>
-            {abon.frozen ? '▶️ Розморозити' : '❄️ Заморозити'}
-          </button>
+          <button className="btn btn-ylw btn-sm" onClick={onExtend}>🔄 Продовжити</button>
+          {!abon.frozen && st !== 'expired' && (
+            <button className="btn btn-ice btn-sm" onClick={onFreeze}>❄️ Заморозити</button>
+          )}
+          {abon.frozen && (
+            <button className="btn btn-acc btn-sm" onClick={onUnfreeze}>▶️ Розморозити</button>
+          )}
+          <button className="btn btn-red btn-sm" onClick={onDeleteAbon}>🗑️ Стерти абон.</button>
         </div>
       )}
     </div>
@@ -238,18 +333,16 @@ function AbonRow({ abon }) {
     <div className="irow">
       <div>
         <div style={{ fontSize: 13, fontWeight: 500 }}>
-          {abon.type === 'month' ? '📅 ' : abon.type === 'trainer' ? '🎫 ' : '🎟 '}
+          {abon.type === 'month' ? '📅 ' : '🎟 '}
           {fmtDate(abon.startDate)}{abon.endDate ? ' → ' + fmtDate(abon.endDate) : ''}
         </div>
-        {abon.type === 'trainer' && (
-          <div style={{ fontSize: 11, color: 'var(--txt2)' }}>{abon.sessionsLeft}/{abon.totalSessions} занять</div>
-        )}
       </div>
       <span className={`ai-tag ${STATUS_TAG[st] || 'tag-gray'}`}>{STATUS_LABEL[st] || '—'}</span>
     </div>
   )
 }
 
+// ── Edit member ───────────────────────────────────────────────────────────────
 function EditMemberModal({ member, onSave, onClose }) {
   const [name, setName] = useState(member.name || '')
   const [phone, setPhone] = useState(member.phone || '')
@@ -264,7 +357,8 @@ function EditMemberModal({ member, onSave, onClose }) {
   )
 }
 
-function AddAbonModal({ memberId, activeAbon, onSave, onClose }) {
+// ── Add new abon ──────────────────────────────────────────────────────────────
+function AddAbonModal({ memberId, memberName, activeAbon, onSave, onClose }) {
   const [type, setType] = useState('month')
   const [dur, setDur] = useState(1)
   const [price, setPrice] = useState('')
@@ -273,26 +367,26 @@ function AddAbonModal({ memberId, activeAbon, onSave, onClose }) {
   const [method, setMethod] = useState('cash')
   const [toCash, setToCash] = useState(true)
   const [cashDate, setCashDate] = useState('today')
-  const [sessions, setSessions] = useState(8)
 
   const endDate = type === 'month' ? addCalMonths(startDate || TODAY, dur) : null
 
   async function save() {
     const p = parseFloat(price) || 0
     const pa = parseFloat(paid) || 0
+    const abonId = uid()
     const ab = {
-      id: uid(), memberId,
+      id: abonId, memberId,
       type, startDate: startDate || TODAY,
       endDate, price: p, paid: pa,
-      active: true,
-      ...(type === 'trainer' ? { totalSessions: sessions, sessionsLeft: sessions } : {}),
+      active: true, frozen: false, freezeStart: null,
+      extraDays: 0, freezeLog: [], visits: [],
       ...(activeAbon ? { prevAbonId: activeAbon.id } : {})
     }
     let payment = null
     if (pa > 0 && toCash) {
       payment = {
-        id: uid(), kind: 'abon', memberId,
-        memberName: '', // filled by caller if needed
+        id: uid(), kind: 'abon', memberId, memberName,
+        abonId,
         date: cashDate === 'today' ? TODAY : startDate,
         time: nowTime(), amount: pa, method
       }
@@ -304,7 +398,7 @@ function AddAbonModal({ memberId, activeAbon, onSave, onClose }) {
     <Modal title="Новий абонемент" onClose={onClose}>
       <FRow label="Тип">
         <div className="method-toggle">
-          {[['month','📅 Місячний'],['visit','🎟 Разовий'],['trainer','🎫 Тренер']].map(([v,l]) => (
+          {[['month','📅 Місячний'],['visit','🎟 Разовий']].map(([v,l]) => (
             <button key={v} className={`method-btn ${type===v?'on-card':''}`} onClick={() => setType(v)}>{l}</button>
           ))}
         </div>
@@ -314,11 +408,6 @@ function AddAbonModal({ memberId, activeAbon, onSave, onClose }) {
           <select value={dur} onChange={e => setDur(+e.target.value)}>
             {[1,2,3,6,12].map(n => <option key={n} value={n}>{n} міс</option>)}
           </select>
-        </FRow>
-      )}
-      {type === 'trainer' && (
-        <FRow label="Кількість занять">
-          <input type="number" value={sessions} onChange={e => setSessions(+e.target.value)} min={1} />
         </FRow>
       )}
       <FRow label="Дата початку">
@@ -357,8 +446,9 @@ function AddAbonModal({ memberId, activeAbon, onSave, onClose }) {
   )
 }
 
-function PayAbonModal({ abon, memberId, memberName, onSave, onClose }) {
-  const [amount, setAmount] = useState(String(abon.price - (abon.paid||0)))
+// ── Pay (purchase) abon debt ──────────────────────────────────────────────────
+function PayAbonModal({ abon, debt, memberId, memberName, onSave, onClose }) {
+  const [amount, setAmount] = useState(String(debt || ''))
   const [method, setMethod] = useState('cash')
   const [note, setNote] = useState('')
 
@@ -370,7 +460,6 @@ function PayAbonModal({ abon, memberId, memberName, onSave, onClose }) {
       date: TODAY, time: nowTime(), amount: a, method, note,
       abonId: abon.id
     }
-    // update abon paid
     const updated = { ...abon, paid: (abon.paid||0) + a }
     onSave(p, updated)
   }
@@ -385,37 +474,73 @@ function PayAbonModal({ abon, memberId, memberName, onSave, onClose }) {
   )
 }
 
+// ── Extend abon ───────────────────────────────────────────────────────────────
 function ExtendAbonModal({ abon, memberId, memberName, onSave, onClose }) {
   const [dur, setDur] = useState(1)
   const [price, setPrice] = useState('')
   const [method, setMethod] = useState('cash')
 
   const curEnd = abon.endDate && abon.endDate >= TODAY ? abon.endDate : TODAY
-  const newEnd = addCalMonths(curEnd, dur)
+  const newEnd = abon.type === 'month' ? addCalMonths(curEnd, dur) : null
 
   function save() {
     const p = parseFloat(price) || 0
-    const updated = { ...abon, endDate: newEnd, price: (abon.price||0) + p, paid: (abon.paid||0) + p }
+    const updated = abon.type === 'month'
+      ? { ...abon, endDate: newEnd, active: true }
+      : abon
     let payment = null
     if (p > 0) {
-      payment = { id: uid(), kind: 'abon', memberId, memberName, date: TODAY, time: nowTime(), amount: p, method, note: 'Продовження' }
+      payment = { id: uid(), kind: 'abon', memberId, memberName, abonId: abon.id, date: TODAY, time: nowTime(), amount: p, method, note: `продовження ${dur} міс.` }
     }
     onSave(updated, payment)
   }
 
   return (
     <Modal title="Продовжити абонемент" onClose={onClose}>
-      <FRow label="Продовжити на (міс)">
-        <select value={dur} onChange={e => setDur(+e.target.value)}>
-          {[1,2,3,6,12].map(n => <option key={n} value={n}>{n} міс</option>)}
-        </select>
-      </FRow>
-      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 14 }}>
-        Новий кінець: <b style={{ color: 'var(--txt)' }}>{fmtDate(newEnd)}</b>
-      </div>
-      <FRow label="Оплата (грн)"><input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" /></FRow>
-      <MethodToggle value={method} onChange={setMethod} />
+      {abon.type === 'month' && (
+        <>
+          <FRow label="Поточний абонемент до">
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{fmtDate(curEnd)}</div>
+          </FRow>
+          <FRow label="Продовжити на (міс)">
+            <select value={dur} onChange={e => setDur(+e.target.value)}>
+              {[1,2,3].map(n => <option key={n} value={n}>{n} міс</option>)}
+            </select>
+          </FRow>
+          <div style={{ fontSize: 13, color: 'var(--grn)', marginBottom: 14 }}>
+            📅 Новий кінець: <b>{fmtDate(newEnd)}</b>{price ? ' · ' + price + ' грн' : ''}
+          </div>
+        </>
+      )}
+      <FRow label="Сума (грн)"><input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="500" /></FRow>
+      <FRow label="Спосіб оплати"><MethodToggle value={method} onChange={setMethod} /></FRow>
       <button className="btn btn-grn" onClick={save}>🔄 Продовжити</button>
+    </Modal>
+  )
+}
+
+// ── Freeze ────────────────────────────────────────────────────────────────────
+function FreezeModal({ abon, onSave, onClose }) {
+  const [startDate, setStartDate] = useState(TODAY)
+  const min = abon.startDate || undefined
+
+  function save() {
+    if (!startDate) { alert('Вкажіть дату початку заморозки'); return }
+    if (startDate > TODAY) { alert('Дата не може бути в майбутньому'); return }
+    onSave(startDate)
+  }
+
+  return (
+    <Modal title="❄️ Заморозити абонемент" onClose={onClose}>
+      <div className="card">
+        <div style={{ fontSize: 14, color: 'var(--txt2)', marginBottom: 14, lineHeight: 1.6 }}>
+          Кінець заморозки визначиться після розморозки. Всі дні додадуться до абонементу автоматично.
+        </div>
+        <FRow label="Початок заморозки">
+          <input type="date" value={startDate} max={TODAY} min={min} onChange={e => setStartDate(e.target.value)} />
+        </FRow>
+        <button className="btn btn-ice" onClick={save}>❄️ Заморозити</button>
+      </div>
     </Modal>
   )
 }

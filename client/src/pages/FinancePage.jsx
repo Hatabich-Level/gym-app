@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { TODAY, fmtDate, uid, nowTime } from '../utils'
-import { MethodPill, Tabs, Empty } from '../components/UI'
+import { TODAY, fmtDate, uid, nowTime, getActiveAbon, getMemberDebt } from '../utils'
+import { MethodPill, Tabs, Empty, Ava } from '../components/UI'
 import { api } from '../api'
 
 const FTABS = [
@@ -9,7 +9,7 @@ const FTABS = [
   { key: 'export', label: '📊 Експорт' },
 ]
 
-export default function FinancePage({ members, abons, payments, manualDebts, role, uname, deletePayment, saveManualDebt, payManualDebt, deleteManualDebt }) {
+export default function FinancePage({ members, abons, payments, manualDebts, role, uname, deletePayment, saveManualDebt, payManualDebt, deleteManualDebt, pushAbons, pushPayment }) {
   const [tab, setTab] = useState('payments')
 
   return (
@@ -17,7 +17,7 @@ export default function FinancePage({ members, abons, payments, manualDebts, rol
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>💰 Фінанси</div>
       <Tabs tabs={FTABS} active={tab} onChange={setTab} />
       {tab === 'payments' && <PaymentsTab payments={payments} members={members} abons={abons} role={role} uname={uname} deletePayment={deletePayment} />}
-      {tab === 'debts' && <DebtsTab manualDebts={manualDebts} members={members} role={role} saveManualDebt={saveManualDebt} payManualDebt={payManualDebt} deleteManualDebt={deleteManualDebt} />}
+      {tab === 'debts' && <DebtsTab manualDebts={manualDebts} members={members} abons={abons} payments={payments} role={role} saveManualDebt={saveManualDebt} payManualDebt={payManualDebt} deleteManualDebt={deleteManualDebt} pushAbons={pushAbons} pushPayment={pushPayment} />}
       {tab === 'export' && <ExportTab payments={payments} abons={abons} />}
     </div>
   )
@@ -148,25 +148,84 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {
   </>
 }
 
-function DebtsTab({ manualDebts, members, role, saveManualDebt, payManualDebt, deleteManualDebt }) {
-  const [modal, setModal] = useState(null) // null | {type:'add'|'pay'|'edit', debtId}
+function DebtsTab({ manualDebts, members, abons, payments, role, saveManualDebt, payManualDebt, deleteManualDebt, pushAbons, pushPayment }) {
+  const [modal, setModal] = useState(null) // null | {type:'add'|'pay'|'edit'|'pay-abon', debtId|memberId}
+
+  // Борги по абонементах (автоматичні, рахуються від ціни абону і прив'язаних платежів)
+  const abonDebtors = useMemo(() => {
+    return members
+      .map(m => ({ m, debt: getMemberDebt(m.id, abons, payments), ab: getActiveAbon(m.id, abons) }))
+      .filter(d => d.debt > 0)
+      .sort((a, b) => b.debt - a.debt)
+  }, [members, abons, payments])
+
   const active = manualDebts.filter(d => (d.remaining||0) > 0)
   const paid = manualDebts.filter(d => (d.remaining||0) <= 0)
 
+  const totalAbonDebt = abonDebtors.reduce((s, d) => s + d.debt, 0)
+  const totalManualDebt = active.reduce((s, d) => s + (d.remaining||0), 0)
+  const totalCount = abonDebtors.length + active.length
+
+  async function payAbonDebt(memberId, abonId, amount, method, note) {
+    const mem = members.find(m => m.id === memberId)
+    const ab = abons.find(a => a.id === abonId)
+    const p = {
+      id: uid(), kind: 'abon', memberId, memberName: mem ? mem.name : '',
+      date: TODAY, time: nowTime(), amount, method, note, abonId
+    }
+    await pushPayment(p)
+    if (ab) await pushAbons([{ ...ab, paid: (ab.paid||0) + amount }])
+    setModal(null)
+  }
+
   return (
     <>
+      <div className="stats2">
+        <div className="sc"><div className="sv" style={{ color: 'var(--red)' }}>{totalCount}</div><div className="sl">Клієнтів з боргом</div></div>
+        <div className="sc"><div className="sv" style={{ color: 'var(--ylw)' }}>{totalAbonDebt + totalManualDebt}</div><div className="sl">Грн загалом</div></div>
+      </div>
+
       {role === 'admin' && (
         <button className="btn btn-acc" style={{ marginBottom: 12 }} onClick={() => setModal({ type: 'add' })}>
           + Додати боржника
         </button>
       )}
+
+      {/* Борги по абонементах */}
+      {abonDebtors.length > 0 && (
+        <div className="card">
+          <div className="ct">Борги по абонементах</div>
+          {abonDebtors.map(d => {
+            const paidAmt = (d.ab.price||0) - d.debt
+            const pct = d.ab.price ? Math.round(paidAmt / d.ab.price * 100) : 0
+            return (
+              <div key={d.m.id} className="debt-item">
+                <Ava name={d.m.name} size={34} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.m.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--txt2)', marginTop: 2 }}>
+                    Оплачено {paidAmt} з {d.ab.price} грн · Борг: <span style={{ color: 'var(--ylw)', fontWeight: 600 }}>{d.debt} грн</span>
+                  </div>
+                  <div className="pbar" style={{ marginTop: 4 }}><div className="pfill" style={{ width: pct + '%', background: 'var(--ylw)' }} /></div>
+                </div>
+                {role === 'admin' && (
+                  <button className="btn-sm btn-grn btn" style={{ width: 'auto', flexShrink: 0 }} onClick={() => setModal({ type: 'pay-abon', memberId: d.m.id, abonId: d.ab.id, debt: d.debt })}>💰 Оплата</button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Ручні борги */}
       {active.length > 0 ? active.map(d => (
         <DebtCard key={d.id} debt={d} members={members} role={role}
           onPay={() => setModal({ type: 'pay', debtId: d.id })}
           onEdit={() => setModal({ type: 'edit', debtId: d.id })}
           onDelete={() => { if(confirm('Видалити?')) deleteManualDebt(d.id) }}
         />
-      )) : <Empty text="Активних боргів немає" />}
+      )) : (abonDebtors.length === 0 && <Empty text="Активних боргів немає" />)}
+
       {paid.length > 0 && (
         <div className="card" style={{ marginTop: 12 }}>
           <div className="ct">✅ Погашені</div>
@@ -188,7 +247,36 @@ function DebtsTab({ manualDebts, members, role, saveManualDebt, payManualDebt, d
       {modal?.type === 'pay' && (
         <PayDebtModal debt={manualDebts.find(d=>d.id===modal.debtId)} onSave={async (id,amt,method,note) => { await payManualDebt(id,amt,method,note); setModal(null) }} onClose={() => setModal(null)} />
       )}
+      {modal?.type === 'pay-abon' && (
+        <PayAbonDebtModal
+          debt={modal.debt}
+          memberName={(members.find(m=>m.id===modal.memberId)||{}).name}
+          onSave={(amt, method, note) => payAbonDebt(modal.memberId, modal.abonId, amt, method, note)}
+          onClose={() => setModal(null)}
+        />
+      )}
     </>
+  )
+}
+
+function PayAbonDebtModal({ debt, memberName, onSave, onClose }) {
+  const [amount, setAmount] = useState(String(debt||''))
+  const [method, setMethod] = useState('cash')
+  const [note, setNote] = useState('')
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto' }}>
+      <div className="mhdr"><button className="back" onClick={onClose}>← Назад</button><span style={{ fontWeight: 600 }}>Оплата абонементу</span></div>
+      <div style={{ padding: 14 }}>
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 600 }}>{memberName}</div>
+          <div style={{ fontSize: 13, color: 'var(--txt2)' }}>Борг: {debt} грн</div>
+        </div>
+        <div className="frow"><div className="flabel">Сума (грн)</div><input type="number" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <MethodToggle value={method} onChange={setMethod} />
+        <div className="frow"><div className="flabel">Примітка</div><input type="text" value={note} onChange={e => setNote(e.target.value)} /></div>
+        <button className="btn btn-grn" onClick={() => { const a=parseFloat(amount)||0; if(!a){alert('Вкажіть суму');return}; onSave(a,method,note) }}>💰 Записати оплату</button>
+      </div>
+    </div>
   )
 }
 

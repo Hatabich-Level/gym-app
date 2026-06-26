@@ -15,6 +15,8 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(new Set())
   const [showDuplicates, setShowDuplicates] = useState(false)
+  const [sortVal, setSortVal] = useState('name')
+  const [sortOpen, setSortOpen] = useState(false)
 
   const shown = useMemo(() => {
     let list = [...members]
@@ -24,9 +26,19 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
     if (tab === 'frozen')  list = list.filter(m => { const a = getActiveAbon(m.id, abons); return a && a.frozen })
     if (tab === 'ending')  list = list.filter(m => { const a = getActiveAbon(m.id, abons); return a && ['ending','expired'].includes(abonStatus(a)) })
     if (tab === 'checked') list = list.filter(m => visitedTodayAny(m.id, abons))
-    list.sort((a, b) => a.name.localeCompare(b.name, 'uk'))
+
+    if (sortVal === 'name') {
+      list.sort((a, b) => a.name.localeCompare(b.name, 'uk'))
+    } else if (sortVal === 'end-asc' || sortVal === 'end-desc') {
+      list.sort((a, b) => {
+        const aa = getActiveAbon(a.id, abons), bb = getActiveAbon(b.id, abons)
+        const da = (aa && aa.endDate) ? aa.endDate : (sortVal === 'end-asc' ? '9999' : '0000')
+        const db = (bb && bb.endDate) ? bb.endDate : (sortVal === 'end-asc' ? '9999' : '0000')
+        return sortVal === 'end-asc' ? da.localeCompare(db) : db.localeCompare(da)
+      })
+    }
     return list
-  }, [members, abons, tab, query])
+  }, [members, abons, tab, query, sortVal])
 
   // Duplicate groups
   const dupGroups = useMemo(() => {
@@ -86,6 +98,33 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
           >
             👥 Дублі{dupGroups.length > 0 && <span style={{ marginLeft: 4, background: 'var(--ylw)', color: '#000', borderRadius: 8, padding: '1px 5px', fontSize: 11 }}>{dupGroups.length}</span>}
           </button>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={() => setSortOpen(o => !o)}
+              style={{ padding: '0 14px', height: '100%', borderRadius: 'var(--r2)', background: 'var(--s1)', border: '1px solid var(--brd)', color: 'var(--txt)', fontSize: 18, cursor: 'pointer' }}
+            >⇅</button>
+            {sortOpen && (
+              <div style={{ position: 'absolute', right: 0, top: '110%', background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 'var(--r)', padding: 6, zIndex: 200, minWidth: 230, boxShadow: '0 8px 32px rgba(0,0,0,.5)' }}>
+                <div style={{ fontSize: 11, color: 'var(--txt2)', textTransform: 'uppercase', letterSpacing: '.6px', padding: '6px 8px 4px' }}>Сортування</div>
+                {[
+                  ['name', "А → Я (ім'я)"],
+                  ['end-asc', 'Закінчується — спочатку раніше'],
+                  ['end-desc', 'Закінчується — спочатку пізніше'],
+                ].map(([v, l]) => (
+                  <div
+                    key={v}
+                    className="sort-opt"
+                    onClick={() => { setSortVal(v); setSortOpen(false) }}
+                    style={{
+                      padding: '10px 12px', borderRadius: 8, fontSize: 14, cursor: 'pointer',
+                      color: sortVal === v ? 'var(--acc)' : 'var(--txt)',
+                      background: sortVal === v ? 'rgba(91,141,246,.15)' : 'transparent'
+                    }}
+                  >{l}{sortVal === v ? ' ✓' : ''}</div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Tabs */}

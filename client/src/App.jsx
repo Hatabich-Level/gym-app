@@ -249,6 +249,8 @@ export default function App() {
               saveManualDebt={store.saveManualDebt}
               payManualDebt={store.payManualDebt}
               deleteManualDebt={store.deleteManualDebt}
+              pushAbons={store.pushAbons}
+              pushPayment={store.pushPayment}
             />
           )}
           {page === 'settings' && role === 'admin' && (
