@@ -1,0 +1,523 @@
+import React, { useState, useMemo } from 'react'
+import {
+  TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon,
+  HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning
+} from '../utils'
+import { FRow, Ava } from '../components/UI'
+
+function MethodToggle({ value, onChange }) {
+  return (
+    <div className="method-toggle" style={{ marginBottom: 14 }}>
+      <button className={`method-btn ${value === 'cash' ? 'on-cash' : ''}`} onClick={() => onChange('cash')}>💵 Готівка</button>
+      <button className={`method-btn ${value === 'card' ? 'on-card' : ''}`} onClick={() => onChange('card')}>💳 Картка</button>
+    </div>
+  )
+}
+
+export default function SessionsPage({ members, abons, payments, role, uname, pushAbons, pushPayment }) {
+  const [sType, setSType] = useState('solo')
+
+  // Solo state
+  const [clientId, setClientId] = useState(null)
+  const [clientName, setClientName] = useState('')
+  const [searchQ, setSearchQ] = useState('')
+  const [amount, setAmount] = useState('')
+  const [useAbon, setUseAbon] = useState(false)
+  const [method, setMethod] = useState('cash')
+  const [hallMethod, setHallMethod] = useState('cash')
+  const [note, setNote] = useState('')
+  const [dateMode, setDateMode] = useState('today')
+  const [customDate, setCustomDate] = useState('')
+
+  // Split state
+  const [splitClients, setSplitClients] = useState([])
+  const [splitSearch, setSplitSearch] = useState('')
+  const [splitAmount, setSplitAmount] = useState('')
+  const [splitMethod, setSplitMethod] = useState('cash')
+  const [splitHallMethod, setSplitHallMethod] = useState('cash')
+
+  // Trainer abon modal
+  const [showAbonModal, setShowAbonModal] = useState(false)
+
+  const sessionDate = dateMode === 'today' ? TODAY : (customDate || TODAY)
+  const trainerAbon = clientId ? getActiveTrainerAbon(clientId, abons) : null
+
+  // ── Solo search ───────────────────────────────────────────────────────────────
+  const soloResults = useMemo(() => {
+    const q = searchQ.toLowerCase().trim()
+    if (!q || clientId) return []
+    return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8)
+  }, [members, searchQ, clientId])
+
+  function selectClient(m) {
+    setClientId(m.id); setClientName(m.name); setSearchQ(m.name)
+    const ta = getActiveTrainerAbon(m.id, abons)
+    setUseAbon(!!ta)
+    if (ta) setAmount('')
+  }
+
+  function clearClient() {
+    setClientId(null); setClientName(''); setSearchQ(''); setUseAbon(false)
+  }
+
+  // ── Split search ──────────────────────────────────────────────────────────────
+  const splitResults = useMemo(() => {
+    const q = splitSearch.toLowerCase().trim()
+    if (!q) return []
+    const ids = splitClients.map(c => c.id)
+    return members.filter(m => m.name.toLowerCase().includes(q) && !ids.includes(m.id)).slice(0, 6)
+  }, [members, splitSearch, splitClients])
+
+  function addSplitClient(m) {
+    const ta = getActiveTrainerAbon(m.id, abons)
+    setSplitClients(prev => [...prev, { id: m.id, name: m.name, useAbon: !!ta }])
+    setSplitSearch('')
+  }
+
+  function removeSplitClient(i) {
+    setSplitClients(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  function toggleSplitAbon(i, val) {
+    setSplitClients(prev => prev.map((c, idx) => idx === i ? { ...c, useAbon: val } : c))
+  }
+
+  // ── Split preview ─────────────────────────────────────────────────────────────
+  const splitPreview = useMemo(() => {
+    const per = parseFloat(splitAmount) || 0
+    const count = splitClients.length
+    const payingCount = splitClients.filter(c => !c.useAbon).length
+    const trainerTotal = payingCount * per
+    const hallTotal = count * SPLIT_HALL_FEE
+    return { per, count, payingCount, trainerTotal, hallTotal }
+  }, [splitClients, splitAmount])
+
+  // ── Today sessions (this trainer) ────────────────────────────────────────────
+  const todaySessions = useMemo(() =>
+    payments
+      .filter(p => p.kind === 'session' && p.date === TODAY &&
+        p.trainer === (uname || (role === 'trainer' ? 'Тренер' : 'Адмін')))
+      .sort((a, b) => (b.time || '').localeCompare(a.time || '')),
+    [payments, uname, role])
+
+  // ── Save solo ─────────────────────────────────────────────────────────────────
+  async function saveSolo() {
+    const name = clientName || searchQ.trim()
+    if (!name) { alert('Виберіть клієнта або введіть ім\'я'); return }
+    const trainerPrice = parseFloat(amount) || 0
+    if (!trainerPrice && !useAbon) { alert('Вкажіть ціну разового'); return }
+
+    const abonsChanged = []
+    let trainerAbonId = null
+
+    if (useAbon && trainerAbon) {
+      const updated = {
+        ...trainerAbon,
+        sessionsLeft: trainerAbon.sessionsLeft - 1,
+        visits: [...(trainerAbon.visits || []), { date: sessionDate, time: nowTime() }]
+      }
+      abonsChanged.push(updated)
+      trainerAbonId = trainerAbon.id
+    }
+
+    const totalAmount = useAbon ? 0 : trainerPrice + HALL_FEE
+    const trainerEarning = useAbon ? 0 : calcTrainerEarning(trainerPrice)
+    const hallEarning = useAbon ? 0 : calcHallEarning(trainerPrice)
+
+    const p = {
+      id: uid(), kind: 'session', sessionType: 'solo',
+      memberId: clientId || null, memberName: name,
+      trainer: uname || (role === 'trainer' ? 'Тренер' : 'Адмін'),
+      date: sessionDate, time: nowTime(),
+      amount: totalAmount, trainerPrice, trainerEarning, hallEarning,
+      method, hallMethod, note, trainerAbonId
+    }
+
+    if (abonsChanged.length) await pushAbons(abonsChanged)
+    await pushPayment(p)
+
+    alert(`✅ Записано! ${useAbon ? 'Списано з абонементу' : `Клієнт: ${totalAmount} грн · Каса тренера: ${trainerEarning} грн`}`)
+    clearClient(); setAmount(''); setNote('')
+    setMethod('cash'); setHallMethod('cash')
+    setDateMode('today'); setCustomDate('')
+  }
+
+  // ── Save split ────────────────────────────────────────────────────────────────
+  async function saveSplit() {
+    if (splitClients.length < 2) { alert('Додайте мінімум 2 клієнти для спліту'); return }
+    const perPerson = parseFloat(splitAmount) || 0
+    if (!perPerson) { alert('Вкажіть твою суму з кожного'); return }
+
+    const abonsChanged = []
+    const clientDetails = splitClients.map(c => {
+      if (c.useAbon && c.id) {
+        const ta = getActiveTrainerAbon(c.id, abons)
+        if (ta) {
+          const updated = {
+            ...ta,
+            sessionsLeft: ta.sessionsLeft - 1,
+            visits: [...(ta.visits || []), { date: sessionDate, time: nowTime() }]
+          }
+          abonsChanged.push(updated)
+          return { name: c.name, paid: false, trainerAbonId: ta.id }
+        }
+      }
+      return { name: c.name, paid: true, trainerAbonId: null }
+    })
+
+    const payingCount = clientDetails.filter(c => c.paid).length
+    const count = splitClients.length
+    const trainerTotal = payingCount * perPerson
+    const hallTotal = count * SPLIT_HALL_FEE
+
+    const p = {
+      id: uid(), kind: 'session', sessionType: 'split',
+      splitClients: splitClients.map(c => c.name),
+      splitDetails: clientDetails,
+      memberName: splitClients.map(c => c.name).join(', '),
+      trainer: uname || (role === 'trainer' ? 'Тренер' : 'Адмін'),
+      date: sessionDate, time: nowTime(),
+      amount: hallTotal, trainerEarning: trainerTotal,
+      splitCount: count, payingCount, perPerson,
+      hallPerPerson: SPLIT_HALL_FEE,
+      note, method: splitMethod, hallMethod: splitHallMethod
+    }
+
+    if (abonsChanged.length) await pushAbons(abonsChanged)
+    await pushPayment(p)
+
+    const abonNote = (count - payingCount) > 0 ? ` (${count - payingCount} з абонементу)` : ''
+    alert(`✅ Записано! Спліт ${count} ос. · Твоя каса: ${trainerTotal} грн · Залу: ${hallTotal} грн${abonNote}`)
+
+    setSplitClients([]); setSplitSearch(''); setSplitAmount('')
+    setSplitMethod('cash'); setSplitHallMethod('cash')
+    setNote(''); setDateMode('today'); setCustomDate('')
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+  return (
+    <div className="pg">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>📋 Заняття</div>
+        {role === 'trainer' && (
+          <button
+            className="btn-sm"
+            style={{ background: 'linear-gradient(135deg,var(--acc),var(--acc2))', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontWeight: 600 }}
+            onClick={() => setShowAbonModal(true)}
+          >+ Продати абонемент</button>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="ct">Нове заняття</div>
+
+        {/* Тип */}
+        <FRow label="Тип заняття">
+          <div className="method-toggle">
+            <button className={`method-btn ${sType === 'solo' ? 'on-cash' : ''}`} onClick={() => setSType('solo')}>👤 Один</button>
+            <button className={`method-btn ${sType === 'split' ? 'on-card' : ''}`} onClick={() => setSType('split')}>👥 Спліт</button>
+          </div>
+        </FRow>
+
+        {/* SOLO */}
+        {sType === 'solo' && (
+          <>
+            <FRow label="Клієнт">
+              <input type="search" placeholder="Пошук або ім'я..."
+                value={searchQ}
+                onChange={e => { setSearchQ(e.target.value); if (clientId) clearClient() }}
+              />
+            </FRow>
+            {soloResults.length > 0 && (
+              <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
+                {soloResults.map(m => {
+                  const ta = getActiveTrainerAbon(m.id, abons)
+                  return (
+                    <div key={m.id} className="mi" onClick={() => selectClient(m)}>
+                      <Ava name={m.name} size={30} />
+                      <div className="mi-info"><div className="mi-name" style={{ fontSize: 14 }}>{m.name}</div></div>
+                      {ta && <span className="ai-tag tag-blue">🎫 {ta.sessionsLeft} зан.</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {clientId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '8px 12px', background: 'var(--s2)', borderRadius: 'var(--r2)', border: '1px solid var(--brd)' }}>
+                <Ava name={clientName} size={28} />
+                <span style={{ flex: 1 }}>{clientName}</span>
+                {trainerAbon && <span className="ai-tag tag-blue">🎫 {trainerAbon.sessionsLeft} занять</span>}
+                <button style={{ background: 'none', border: 'none', color: 'var(--txt2)', cursor: 'pointer', fontSize: 16 }} onClick={clearClient}>✕</button>
+              </div>
+            )}
+
+            {/* Trainer abon info */}
+            {trainerAbon && (
+              <div style={{ background: 'rgba(39,201,122,.08)', border: '1px solid rgba(39,201,122,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--grn)' }}>
+                🎫 Є абонемент: залишилось {trainerAbon.sessionsLeft} з {trainerAbon.totalSessions} занять — сума не потрібна
+              </div>
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--txt2)', marginBottom: 14, cursor: 'pointer' }}>
+              <input type="checkbox" checked={useAbon && !!trainerAbon} onChange={e => trainerAbon && setUseAbon(e.target.checked)} style={{ width: 17, height: 17 }} />
+              🎫 Списати заняття з абонементу тренера
+            </label>
+
+            {!useAbon && (
+              <FRow label="Ціна разового (грн)">
+                <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="350" min={0} />
+              </FRow>
+            )}
+            {amount && !useAbon && (() => {
+              const tp = parseFloat(amount) || 0
+              return (
+                <div style={{ background: 'rgba(39,201,122,.08)', border: '1px solid rgba(39,201,122,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 14, fontSize: 13, lineHeight: 1.8 }}>
+                  💰 Клієнт платить: <b>{tp + HALL_FEE} грн</b> (тренер {tp} + зал {HALL_FEE})<br />
+                  🏦 Каса залу: <b>{calcHallEarning(tp)} грн</b><br />
+                  💵 <span style={{ color: 'var(--grn)' }}>Каса тренера: <b>{calcTrainerEarning(tp)} грн</b></span>
+                </div>
+              )
+            })()}
+          </>
+        )}
+
+        {/* SPLIT */}
+        {sType === 'split' && (
+          <>
+            <FRow label="Клієнти спліту">
+              <input type="search" placeholder="Додати клієнта..."
+                value={splitSearch} onChange={e => setSplitSearch(e.target.value)}
+              />
+            </FRow>
+            {splitResults.length > 0 && (
+              <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
+                {splitResults.map(m => (
+                  <div key={m.id} className="mi" onClick={() => addSplitClient(m)}>
+                    <Ava name={m.name} size={30} />
+                    <div className="mi-info"><div className="mi-name" style={{ fontSize: 14 }}>{m.name}</div></div>
+                    <span style={{ color: 'var(--acc)', fontSize: 12 }}>+ Додати</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {splitClients.length > 0 && (
+              <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
+                {splitClients.map((c, i) => {
+                  const ta = c.id ? getActiveTrainerAbon(c.id, abons) : null
+                  return (
+                    <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--brd)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Ava name={c.name} size={28} />
+                        <span style={{ flex: 1, fontSize: 14 }}>{c.name}</span>
+                        <button className="alert-dismiss" onClick={() => removeSplitClient(i)}>✕</button>
+                      </div>
+                      {ta && (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--grn)', marginTop: 6, marginLeft: 36, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={c.useAbon} onChange={e => toggleSplitAbon(i, e.target.checked)} style={{ width: 15, height: 15 }} />
+                          🎫 Списати заняття (залишилось {ta.sessionsLeft} з {ta.totalSessions})
+                        </label>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <FRow label="Твоя сума з кожного (грн)">
+              <input type="number" value={splitAmount} onChange={e => setSplitAmount(e.target.value)} placeholder="напр: 150" min={0} />
+            </FRow>
+            {splitPreview.per > 0 && splitClients.length > 0 && (
+              <div style={{ fontSize: 14, color: 'var(--grn)', fontWeight: 600, marginBottom: 14 }}>
+                💵 Твоя каса: <b>{splitPreview.trainerTotal} грн</b> ({splitPreview.payingCount} × {splitPreview.per} грн)<br />
+                🏦 Залу: <b>{splitPreview.hallTotal} грн</b> ({splitPreview.count} × {SPLIT_HALL_FEE} грн)
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Оплата — solo */}
+        {sType === 'solo' && (
+          <div className="frow">
+            <div className="flabel">Оплата</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--txt2)', width: 110, flexShrink: 0 }}>Клієнт → тренер:</span>
+                <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setMethod('cash')}>💵 Готівка</button>
+                <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setMethod('card')}>💳 Картка</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--txt2)', width: 110, flexShrink: 0 }}>Тренер → зал:</span>
+                <button className={`method-btn ${hallMethod === 'cash' ? 'on-cash' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setHallMethod('cash')}>💵 Готівка</button>
+                <button className={`method-btn ${hallMethod === 'card' ? 'on-card' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setHallMethod('card')}>💳 Картка</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Оплата — split */}
+        {sType === 'split' && (
+          <div className="frow">
+            <div className="flabel">Оплата</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--txt2)', width: 110, flexShrink: 0 }}>Клієнт → тренер:</span>
+                <button className={`method-btn ${splitMethod === 'cash' ? 'on-cash' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setSplitMethod('cash')}>💵 Готівка</button>
+                <button className={`method-btn ${splitMethod === 'card' ? 'on-card' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setSplitMethod('card')}>💳 Картка</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--txt2)', width: 110, flexShrink: 0 }}>Тренер → зал:</span>
+                <button className={`method-btn ${splitHallMethod === 'cash' ? 'on-cash' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setSplitHallMethod('cash')}>💵 Готівка</button>
+                <button className={`method-btn ${splitHallMethod === 'card' ? 'on-card' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setSplitHallMethod('card')}>💳 Картка</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Дата */}
+        <div className="frow">
+          <div className="flabel">Дата заняття</div>
+          <div className="method-toggle">
+            <button className={`method-btn ${dateMode === 'today' ? 'on-cash' : ''}`} onClick={() => setDateMode('today')}>📅 Сьогодні</button>
+            <button className={`method-btn ${dateMode === 'past' ? 'on-cash' : ''}`} onClick={() => setDateMode('past')}>🕓 Задня дата</button>
+          </div>
+          {dateMode === 'past' && (
+            <input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)} max={TODAY} style={{ marginTop: 8 }} />
+          )}
+        </div>
+
+        <FRow label="Примітка (необов'язково)">
+          <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="напр: персональне тренування" />
+        </FRow>
+
+        <button className="btn btn-grn" onClick={sType === 'solo' ? saveSolo : saveSplit}>
+          💾 Записати заняття
+        </button>
+      </div>
+
+      {/* Today sessions */}
+      {todaySessions.length > 0 && (
+        <div className="card">
+          <div className="ct">Сьогодні</div>
+          {todaySessions.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--brd)' }}>
+              <span>{p.sessionType === 'split' ? '👥' : '👤'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.memberName}</div>
+                <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
+                  {p.time}{p.sessionType === 'split' ? ` · ${p.splitCount} ос.` : ''}{p.note ? ` · ${p.note}` : ''}
+                </div>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--grn)', fontWeight: 600, flexShrink: 0 }}>
+                {p.trainerEarning || p.amount} грн
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Trainer abon modal */}
+      {showAbonModal && (
+        <TrainerAbonModal
+          members={members}
+          abons={abons}
+          uname={uname}
+          pushAbons={pushAbons}
+          pushPayment={pushPayment}
+          onClose={() => setShowAbonModal(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Trainer abon modal ────────────────────────────────────────────────────────
+function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClose }) {
+  const [search, setSearch] = useState('')
+  const [clientId, setClientId] = useState(null)
+  const [clientName, setClientName] = useState('')
+  const [sessions, setSessions] = useState(8)
+  const [price, setPrice] = useState('')
+  const [method, setMethod] = useState('cash')
+  const [toCash, setToCash] = useState(true)
+
+  const results = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    if (!q || clientId) return []
+    return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8)
+  }, [members, search, clientId])
+
+  async function save() {
+    if (!clientId && !search.trim()) { alert('Виберіть клієнта'); return }
+    const name = clientName || search.trim()
+    const p = parseFloat(price) || 0
+    const ab = {
+      id: uid(), memberId: clientId, memberName: name,
+      type: 'trainer', startDate: TODAY,
+      totalSessions: sessions, sessionsLeft: sessions,
+      price: p, paid: p, active: true,
+      trainer: uname || 'Тренер'
+    }
+    let payment = null
+    if (p > 0 && toCash) {
+      payment = {
+        id: uid(), kind: 'trainer_abon',
+        memberId: clientId, memberName: name,
+        date: TODAY, time: nowTime(), amount: p, method,
+        note: `Абонемент тренера ${sessions} занять`
+      }
+    }
+    await pushAbons([ab])
+    if (payment) await pushPayment(payment)
+    alert(`✅ Абонемент на ${sessions} занять продано`)
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto', paddingBottom: 40 }}>
+      <div className="mhdr">
+        <button className="back" onClick={onClose}>
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+            <path d="M7 1L1 7l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Назад
+        </button>
+        <span style={{ fontWeight: 600, fontSize: 16 }}>Продати абонемент</span>
+      </div>
+      <div style={{ padding: 14 }}>
+        <FRow label="Клієнт">
+          <input type="search" placeholder="Пошук або ім'я..." value={search}
+            onChange={e => { setSearch(e.target.value); if (clientId) { setClientId(null); setClientName('') } }} />
+        </FRow>
+        {results.length > 0 && (
+          <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
+            {results.map(m => (
+              <div key={m.id} className="mi" onClick={() => { setClientId(m.id); setClientName(m.name); setSearch(m.name) }}>
+                <Ava name={m.name} size={30} />
+                <div className="mi-info"><div className="mi-name" style={{ fontSize: 14 }}>{m.name}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+        <FRow label="Кількість занять">
+          <select value={sessions} onChange={e => setSessions(+e.target.value)}>
+            {[4, 6, 8, 10, 12, 16, 20].map(n => <option key={n} value={n}>{n} занять</option>)}
+          </select>
+        </FRow>
+        <FRow label="Ціна (грн)">
+          <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" />
+        </FRow>
+        {parseFloat(price) > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, marginBottom: 14 }}>
+            <input type="checkbox" checked={toCash} onChange={e => setToCash(e.target.checked)} />
+            Записати в касу
+          </label>
+        )}
+        {parseFloat(price) > 0 && toCash && (
+          <div className="method-toggle" style={{ marginBottom: 14 }}>
+            <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵 Готівка</button>
+            <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳 Картка</button>
+          </div>
+        )}
+        <button className="btn btn-grn" onClick={save}>💾 Зберегти абонемент</button>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,158 @@
+import React, { useState, useMemo } from 'react'
+import { TODAY, fmtDate, uid, nowTime, abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
+import { Ava, MethodToggle, StatusTag } from '../components/UI'
+
+export default function CheckinPage({ members, abons, payments, role, pushAbons, pushPayment }) {
+  const [query, setQuery] = useState('')
+  const [selectedId, setSelectedId] = useState(null)
+  const [method, setMethod] = useState('cash')
+
+  const checkedToday = useMemo(() =>
+    members.filter(m => visitedTodayAny(m.id, abons))
+      .sort((a,b) => {
+        const lastVisit = (mb) => {
+          const visits = abons.filter(a => a.memberId === mb.id).flatMap(a => a.visits||[]).filter(v => v.date === TODAY)
+          return visits.length ? visits[visits.length-1].time : ''
+        }
+        return lastVisit(b).localeCompare(lastVisit(a))
+      }), [members, abons])
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    if (!q) return []
+    return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 10)
+  }, [members, query])
+
+  const selectedMember = members.find(m => m.id === selectedId)
+  const selectedAbon = selectedId ? getActiveAbon(selectedId, abons) : null
+  const selectedSt = selectedAbon ? abonStatus(selectedAbon) : null
+
+  function canCheckin() {
+    if (!selectedAbon) return false
+    if (selectedAbon.frozen) return false
+    if (selectedSt === 'expired') return false
+    const todayVisit = (selectedAbon.visits||[]).find(v => v.date === TODAY)
+    return !todayVisit
+  }
+
+  async function doCheckin() {
+    if (!selectedAbon || !canCheckin()) return
+    const updated = {
+      ...selectedAbon,
+      visits: [...(selectedAbon.visits||[]), { date: TODAY, time: nowTime() }]
+    }
+    // for visit type, deactivate
+    if (updated.type === 'visit') updated.active = false
+
+    await pushAbons([updated])
+
+    // add payment if visit type
+    if (selectedAbon.type === 'visit' && selectedAbon.price) {
+      const p = {
+        id: uid(), kind: 'abon', memberId: selectedId,
+        memberName: selectedMember?.name || '',
+        date: TODAY, time: nowTime(),
+        amount: selectedAbon.price, method
+      }
+      await pushPayment(p)
+    }
+
+    alert(`✅ ${selectedMember?.name} відмічено!`)
+    setSelectedId(null)
+    setQuery('')
+  }
+
+  return (
+    <div className="pg">
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>📍 Відмітити</div>
+
+      {/* Search */}
+      <div className="sr">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+        </svg>
+        <input
+          type="search" placeholder="Пошук клієнта..."
+          value={query} onChange={e => { setQuery(e.target.value); setSelectedId(null) }}
+        />
+      </div>
+
+      {/* Search results */}
+      {filtered.length > 0 && !selectedId && (
+        <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
+          {filtered.map(m => {
+            const ab = getActiveAbon(m.id, abons)
+            const st = ab ? abonStatus(ab) : null
+            return (
+              <div key={m.id} className="mi" onClick={() => { setSelectedId(m.id); setQuery(m.name) }}>
+                <Ava name={m.name} size={32} />
+                <div className="mi-info">
+                  <div className="mi-name">{m.name}</div>
+                </div>
+                <StatusTag status={st} />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Selected client */}
+      {selectedMember && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Ava name={selectedMember.name} />
+              <div>
+                <div style={{ fontWeight: 600 }}>{selectedMember.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
+                  {selectedAbon ? (selectedAbon.type === 'month' ? 'до ' + fmtDate(selectedAbon.endDate) : 'Разовий') : 'Без абонементу'}
+                </div>
+              </div>
+            </div>
+            <button
+              style={{ background: 'none', border: 'none', color: 'var(--txt2)', cursor: 'pointer', fontSize: 16 }}
+              onClick={() => { setSelectedId(null); setQuery('') }}
+            >✕</button>
+          </div>
+
+          {selectedAbon?.type === 'visit' && selectedAbon.price > 0 && (
+            <MethodToggle value={method} onChange={setMethod} />
+          )}
+
+          <button
+            className={`checkin-btn ${!canCheckin() ? 'disabled' : ''}`}
+            onClick={canCheckin() ? doCheckin : undefined}
+          >
+            {!selectedAbon ? '❌ Немає абонементу' :
+             selectedAbon.frozen ? '❄️ Абонемент заморожено' :
+             selectedSt === 'expired' ? '❌ Абонемент прострочено' :
+             (selectedAbon.visits||[]).find(v => v.date === TODAY) ? '✅ Вже відмічено сьогодні' :
+             '✅ Відмітити відвідування'}
+          </button>
+        </div>
+      )}
+
+      {/* Checked today */}
+      {checkedToday.length > 0 && (
+        <div className="card">
+          <div className="ct">✅ Відмічені сьогодні — {checkedToday.length}</div>
+          {checkedToday.map(m => {
+            const ab = getActiveAbon(m.id, abons)
+            const lastVisit = abons.filter(a => a.memberId === m.id).flatMap(a => a.visits||[]).filter(v => v.date === TODAY).pop()
+            const sub = ab ? (ab.type === 'month' ? 'до ' + fmtDate(ab.endDate) : ab.type === 'visit' ? 'Разовий' : 'Абонемент тренера') : 'Разовий'
+            return (
+              <div key={m.id} className="mi" style={{ cursor: 'default' }}>
+                <Ava name={m.name} />
+                <div className="mi-info">
+                  <div className="mi-name">{m.name}</div>
+                  <div className="mi-sub">{sub}{lastVisit ? ' · ' + lastVisit.time : ''}</div>
+                </div>
+                <span className="ai-tag tag-grn">✓</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}

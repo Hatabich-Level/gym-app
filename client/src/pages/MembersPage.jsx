@@ -1,0 +1,130 @@
+import React, { useState, useMemo } from 'react'
+import { abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG, fmtDate, TODAY } from '../utils'
+import { Ava, CustomCheckbox, StatusTag, Tabs, Empty } from '../components/UI'
+
+const TABS = [
+  { key: 'all', label: 'Всі' },
+  { key: 'active', label: 'Активні' },
+  { key: 'frozen', label: 'Заморожені' },
+  { key: 'ending', label: 'Закінчується' },
+  { key: 'checked', label: 'Сьогодні' },
+]
+
+export default function MembersPage({ members, abons, role, onOpen, onAdd, onDeleteMany, initialTab }) {
+  const [tab, setTab] = useState(initialTab || 'all')
+  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState(new Set())
+
+  const shown = useMemo(() => {
+    let list = [...members]
+    const q = query.toLowerCase().trim()
+    if (q) list = list.filter(m => m.name.toLowerCase().includes(q))
+    if (tab === 'active')  list = list.filter(m => { const a = getActiveAbon(m.id, abons); return a && abonStatus(a) === 'active' })
+    if (tab === 'frozen')  list = list.filter(m => { const a = getActiveAbon(m.id, abons); return a && a.frozen })
+    if (tab === 'ending')  list = list.filter(m => { const a = getActiveAbon(m.id, abons); return a && ['ending','expired'].includes(abonStatus(a)) })
+    if (tab === 'checked') list = list.filter(m => visitedTodayAny(m.id, abons))
+    list.sort((a, b) => a.name.localeCompare(b.name, 'uk'))
+    return list
+  }, [members, abons, tab, query])
+
+  function toggleSelect(id, e) {
+    e.stopPropagation()
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function selectAll() {
+    if (selected.size === shown.length) setSelected(new Set())
+    else setSelected(new Set(shown.map(m => m.id)))
+  }
+
+  async function deleteSelected() {
+    if (!selected.size) return
+    const names = [...selected].map(id => members.find(m => m.id === id)?.name || id)
+    if (!confirm(`Видалити ${selected.size} клієнт(ів)?\n${names.join(', ')}\n\nЦю дію неможливо скасувати!`)) return
+    await onDeleteMany([...selected])
+    setSelected(new Set())
+  }
+
+  return (
+    <div className="pg" style={{ paddingTop: 0 }}>
+      {/* Search */}
+      <div style={{ position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 10, paddingTop: 14, paddingBottom: 4 }}>
+        <div className="sr">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+          </svg>
+          <input
+            type="search" placeholder="Пошук клієнта..."
+            value={query} onChange={e => setQuery(e.target.value)}
+          />
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <button className="btn btn-acc" style={{ flex: 1, padding: 12, fontSize: 15 }} onClick={onAdd}>
+            + Новий клієнт
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <Tabs tabs={TABS} active={tab} onChange={t => { setTab(t); setSelected(new Set()) }} />
+      </div>
+
+      {/* Bulk bar */}
+      {role === 'admin' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+          padding: '8px 10px', background: 'var(--s2)', borderRadius: 'var(--r2)',
+          border: '1px solid var(--brd)'
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', flex: 1, fontSize: 13, color: 'var(--txt2)' }}>
+            <CustomCheckbox
+              checked={shown.length > 0 && selected.size === shown.length}
+              onChange={selectAll}
+            />
+            Вибрати всіх
+          </label>
+          <button
+            className="btn btn-red btn-sm"
+            style={{ opacity: selected.size > 0 ? 1 : 0.35, pointerEvents: selected.size > 0 ? 'auto' : 'none' }}
+            onClick={deleteSelected}
+          >
+            🗑 {selected.size > 0 ? `Видалити (${selected.size})` : 'Видалити'}
+          </button>
+        </div>
+      )}
+
+      {/* List */}
+      {shown.length === 0 ? <Empty text="Клієнтів не знайдено" /> : (
+        <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px' }}>
+          {shown.map(m => {
+            const ab = getActiveAbon(m.id, abons)
+            const st = ab ? abonStatus(ab) : null
+            const sub = ab ? (ab.type === 'month' ? 'до ' + fmtDate(ab.endDate) : ab.type === 'trainer' ? 'Абонемент тренера' : 'Разовий') : 'Без абонементу'
+            return (
+              <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
+                {role === 'admin' && (
+                  <CustomCheckbox
+                    checked={selected.has(m.id)}
+                    onChange={() => {}}
+                    onClick={e => toggleSelect(m.id, e)}
+                  />
+                )}
+                <Ava name={m.name} />
+                <div className="mi-info">
+                  <div className="mi-name">{m.name}</div>
+                  <div className="mi-sub">{sub}</div>
+                </div>
+                <StatusTag status={st} />
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
