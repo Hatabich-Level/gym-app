@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react'
 import { TODAY, fmtDate, uid, nowTime, abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
-import { Ava, MethodToggle, StatusTag } from '../components/UI'
+import { Ava, StatusTag } from '../components/UI'
 
 export default function CheckinPage({ members, abons, payments, role, pushAbons, pushPayment }) {
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(null)
-  const [method, setMethod] = useState('cash')
 
   const checkedToday = useMemo(() =>
     members.filter(m => visitedTodayAny(m.id, abons))
@@ -52,7 +51,7 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
         id: uid(), kind: 'abon', memberId: selectedId,
         memberName: selectedMember?.name || '',
         date: TODAY, time: nowTime(),
-        amount: selectedAbon.price, method
+        amount: selectedAbon.price, method: 'cash'
       }
       await pushPayment(p)
     }
@@ -114,10 +113,6 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
               onClick={() => { setSelectedId(null); setQuery('') }}
             >✕</button>
           </div>
-
-          {selectedAbon?.type === 'visit' && selectedAbon.price > 0 && (
-            <MethodToggle value={method} onChange={setMethod} />
-          )}
 
           <button
             className={`checkin-btn ${!canCheckin() ? 'disabled' : ''}`}

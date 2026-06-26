@@ -24,7 +24,13 @@ export default function FinancePage({ members, abons, payments, manualDebts, rol
 }
 
 function sumBy(arr, method) {
-  return arr.filter(p => method === 'cash' ? p.method !== 'card' : p.method === 'card').reduce((s,p) => s + (p.amount||0), 0)
+  return arr.reduce((s, p) => {
+    const matches = method === 'cash' ? p.method !== 'card' : p.method === 'card'
+    if (!matches) return s
+    // для занять рахуємо лише касу залу, не повну суму клієнта
+    const amt = p.kind === 'session' ? (p.hallEarning || 0) : (p.amount || 0)
+    return s + amt
+  }, 0)
 }
 
 function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {

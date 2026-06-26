@@ -7,7 +7,9 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
   const active   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && abonStatus(a) === 'active' }).length
   const ending   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && ['ending','expired'].includes(abonStatus(a)) }).length
   const checked  = members.filter(m => visitedTodayAny(m.id, abons)).length
-  const todayPay = payments.filter(p => p.date === TODAY).reduce((s,p) => s + (p.amount || 0), 0)
+  const todayAll = payments.filter(p => p.date === TODAY)
+  const todayCash = todayAll.filter(p => p.method !== 'card').reduce((s,p) => s + (p.amount||0), 0)
+  const todayCard = todayAll.filter(p => p.method === 'card').reduce((s,p) => s + (p.amount||0), 0)
 
   // Today sessions
   const todaySessions = payments
@@ -38,12 +40,25 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
             <div className="sv" style={{ color: ending > 0 ? 'var(--ylw)' : 'var(--txt2)' }}>{ending}</div>
             <div className="sl">⚠️ Закінчуються</div>
           </div>
-          <div className="sc">
-            <div className="sv" style={{ color: 'var(--grn)' }}>{todayPay}</div>
-            <div className="sl">💰 Сьогодні грн</div>
-          </div>
         </>}
       </div>
+
+      {role === 'admin' && (
+        <div className="stats3" style={{ marginBottom: 12 }}>
+          <div className="sc">
+            <div className="sv" style={{ color: 'var(--grn)' }}>{todayCash}</div>
+            <div className="sl">💵 Готівка</div>
+          </div>
+          <div className="sc">
+            <div className="sv" style={{ color: 'var(--acc)' }}>{todayCard}</div>
+            <div className="sl">💳 Картка</div>
+          </div>
+          <div className="sc">
+            <div className="sv">{todayCash + todayCard}</div>
+            <div className="sl">💰 Разом сьогодні</div>
+          </div>
+        </div>
+      )}
 
       {/* Ending alert */}
       {role === 'admin' && endingList.length > 0 && (
