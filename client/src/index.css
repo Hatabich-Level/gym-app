@@ -171,3 +171,50 @@ select:focus,input:focus{border-color:var(--acc)}
 .sel-chip{display:inline-flex;align-items:center;gap:7px;background:rgba(91,141,246,.1);border:1px solid rgba(91,141,246,.3);border-radius:20px;padding:5px 7px 5px 12px;font-size:13px;font-weight:600;color:var(--txt);margin-bottom:12px}
 .sel-chip .x{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:var(--txt2);font-size:11px;cursor:pointer;transition:all .15s;line-height:1}
 .sel-chip .x:hover{background:rgba(255,51,102,.2);color:#ff5588}
+
+/* ── DESKTOP / TABLET ADAPTIVE LAYOUT ─────────────────────────────────── */
+@media (min-width: 720px){
+  body{background:#070810}
+  .hdr,.pg,.nav,.reminder-banner,.fullscreen{
+    max-width:640px;margin-left:auto;margin-right:auto;
+  }
+  .hdr{
+    left:0;right:0;border-radius:0 0 var(--r) var(--r);
+    box-shadow:0 8px 30px rgba(0,0,0,.35);
+  }
+  .nav{
+    left:50%;transform:translateX(-50%);right:auto;width:640px;
+    border-radius:var(--r) var(--r) 0 0;border-left:1px solid var(--brd);border-right:1px solid var(--brd);
+    box-shadow:0 -8px 30px rgba(0,0,0,.35);
+  }
+  .pg{
+    background:var(--bg);
+    min-height:calc(100vh - 90px);
+    box-shadow:0 0 40px rgba(0,0,0,.3);
+    border-left:1px solid var(--brd);border-right:1px solid var(--brd);
+  }
+  .modal,.fullscreen{max-width:640px;margin:0 auto;border-left:1px solid var(--brd);border-right:1px solid var(--brd)}
+  .mhdr{max-width:640px;margin-left:auto;margin-right:auto;left:0;right:0}
+
+  /* кнопки дій не тягнуться на всю ширину, центруються і мають розумний максимум */
+  .btn{max-width:420px;margin-left:auto;margin-right:auto}
+  .btn+.btn{margin-top:8px}
+  .checkin-btn{max-width:420px;margin-left:auto;margin-right:auto}
+
+  /* парні перемикачі (тип заняття / спосіб оплати / роль) трохи компактніші й не розтягуються на весь екран */
+  .method-toggle,.role-toggle{max-width:420px;margin-left:auto;margin-right:auto}
+
+  /* картки отримують легку рамку для глибини на світлішому тлі сторінки */
+  .card{box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+
+  /* кнопки в gridі (наприклад заморозити / новий абон.) лишаються грідом, але обмежені по ширині */
+  .grid2{max-width:420px;margin-left:auto;margin-right:auto}
+
+  .login-box{max-width:380px}
+}
+
+/* великі екрани — трішки повітря по краях, без зміни самого контенту */
+@media (min-width: 1000px){
+  .hdr,.nav,.pg,.modal,.mhdr,.fullscreen{max-width:680px}
+  .nav{width:680px}
+}
