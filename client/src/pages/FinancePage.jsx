@@ -16,7 +16,7 @@ export default function FinancePage({ members, abons, payments, manualDebts, rol
     <div className="pg">
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>💰 Фінанси</div>
       <Tabs tabs={FTABS} active={tab} onChange={setTab} />
-      {tab === 'payments' && <PaymentsTab payments={payments} members={members} abons={abons} role={role} uname={uname} deletePayment={deletePayment} />}
+      {tab === 'payments' && <PaymentsTab payments={payments} members={members} role={role} uname={uname} deletePayment={deletePayment} />}
       {tab === 'debts' && <DebtsTab manualDebts={manualDebts} members={members} role={role} saveManualDebt={saveManualDebt} payManualDebt={payManualDebt} deleteManualDebt={deleteManualDebt} />}
       {tab === 'export' && <ExportTab payments={payments} abons={abons} />}
     </div>
@@ -27,7 +27,7 @@ function sumBy(arr, method) {
   return arr.filter(p => method === 'cash' ? p.method !== 'card' : p.method === 'card').reduce((s,p) => s + (p.amount||0), 0)
 }
 
-function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {
+function PaymentsTab({ payments, members, role, uname, deletePayment }) {
   const thisMonth = TODAY.slice(0,7)
   const monthPays = payments.filter(p => p.date?.slice(0,7) === thisMonth)
 

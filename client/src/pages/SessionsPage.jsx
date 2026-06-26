@@ -337,16 +337,16 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
         {sType === 'solo' && (
           <div className="frow">
             <div className="flabel">Оплата</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--txt2)', width: 110, flexShrink: 0 }}>Клієнт → тренер:</span>
-                <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setMethod('cash')}>💵 Готівка</button>
-                <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setMethod('card')}>💳 Картка</button>
+            <div className="chip-row">
+              <div className="chip-group">
+                <span className="chip-label">Клієнт→тренер</span>
+                <button className={`chip ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵</button>
+                <button className={`chip ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳</button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--txt2)', width: 110, flexShrink: 0 }}>Тренер → зал:</span>
-                <button className={`method-btn ${hallMethod === 'cash' ? 'on-cash' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setHallMethod('cash')}>💵 Готівка</button>
-                <button className={`method-btn ${hallMethod === 'card' ? 'on-card' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setHallMethod('card')}>💳 Картка</button>
+              <div className="chip-group">
+                <span className="chip-label">Тренер→зал</span>
+                <button className={`chip ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}>💵</button>
+                <button className={`chip ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}>💳</button>
               </div>
             </div>
           </div>
@@ -356,16 +356,16 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
         {sType === 'split' && (
           <div className="frow">
             <div className="flabel">Оплата</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--txt2)', width: 110, flexShrink: 0 }}>Клієнт → тренер:</span>
-                <button className={`method-btn ${splitMethod === 'cash' ? 'on-cash' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setSplitMethod('cash')}>💵 Готівка</button>
-                <button className={`method-btn ${splitMethod === 'card' ? 'on-card' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setSplitMethod('card')}>💳 Картка</button>
+            <div className="chip-row">
+              <div className="chip-group">
+                <span className="chip-label">Клієнт→тренер</span>
+                <button className={`chip ${splitMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitMethod('cash')}>💵</button>
+                <button className={`chip ${splitMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitMethod('card')}>💳</button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--txt2)', width: 110, flexShrink: 0 }}>Тренер → зал:</span>
-                <button className={`method-btn ${splitHallMethod === 'cash' ? 'on-cash' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setSplitHallMethod('cash')}>💵 Готівка</button>
-                <button className={`method-btn ${splitHallMethod === 'card' ? 'on-card' : ''}`} style={{ flex: 1, padding: 8, fontSize: 13 }} onClick={() => setSplitHallMethod('card')}>💳 Картка</button>
+              <div className="chip-group">
+                <span className="chip-label">Тренер→зал</span>
+                <button className={`chip ${splitHallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitHallMethod('cash')}>💵</button>
+                <button className={`chip ${splitHallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitHallMethod('card')}>💳</button>
               </div>
             </div>
           </div>

@@ -70,6 +70,12 @@ export default function App() {
       const updated = { ...existing, ...data }
       await store.pushMembers([updated])
     } else {
+      // Перевірка дублікатів при створенні нового клієнта
+      const dup = store.members.find(m => m.name.trim().toLowerCase() === (data.name || '').trim().toLowerCase())
+      if (dup) {
+        const ok = window.confirm(`⚠️ Клієнт «${dup.name}» вже існує!\n\nСтворити ще одного з таким же іменем?`)
+        if (!ok) return
+      }
       const m = { id: uid(), ...data }
       await store.pushMembers([m])
     }
@@ -207,6 +213,7 @@ export default function App() {
               onOpen={(id) => setMemberDetailId(id)}
               onAdd={() => setMemberDetailId('__new__')}
               onDeleteMany={store.deleteMembers}
+              onDeleteMember={async (id) => { await store.deleteMember(id); }}
             />
           )}
           {page === 'checkin' && (

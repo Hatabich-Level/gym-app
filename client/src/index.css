@@ -148,3 +148,26 @@ select:focus,input:focus{border-color:var(--acc)}
 /* Spinning */
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinning{animation:spin .8s linear infinite}
+
+/* ── Chip toggles (compact payment buttons) ─────────────────────────────── */
+.chip-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.chip-group{display:flex;align-items:center;gap:5px}
+.chip-label{font-size:11px;color:var(--txt2);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--brd);background:var(--s2);color:var(--txt2);transition:all .15s;white-space:nowrap;line-height:1}
+.chip:active{transform:scale(.94)}
+.chip.on-cash{background:rgba(39,201,122,.15);color:var(--grn);border-color:var(--grn)}
+.chip.on-card{background:rgba(91,141,246,.15);color:var(--acc);border-color:var(--acc)}
+
+/* ── Icon buttons (✕ ✏️ 🗑️) ───────────────────────────────────────────── */
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:none;background:var(--s3);color:var(--txt2);font-size:13px;cursor:pointer;flex-shrink:0;transition:all .15s;line-height:1}
+.icon-btn:active{transform:scale(.88)}
+.icon-btn.del{background:rgba(255,51,102,.1);color:#ff5588}
+.icon-btn.del:hover{background:rgba(255,51,102,.22)}
+.icon-btn.edit{background:rgba(245,166,35,.1);color:var(--ylw)}
+.icon-btn.pay{background:rgba(39,201,122,.12);color:var(--grn)}
+.icon-btn.hist{background:rgba(91,141,246,.1);color:var(--acc)}
+
+/* ── Selected client chip ───────────────────────────────────────────────── */
+.sel-chip{display:inline-flex;align-items:center;gap:7px;background:rgba(91,141,246,.1);border:1px solid rgba(91,141,246,.3);border-radius:20px;padding:5px 7px 5px 12px;font-size:13px;font-weight:600;color:var(--txt);margin-bottom:12px}
+.sel-chip .x{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:var(--txt2);font-size:11px;cursor:pointer;transition:all .15s;line-height:1}
+.sel-chip .x:hover{background:rgba(255,51,102,.2);color:#ff5588}

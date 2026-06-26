@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG, fmtDate, TODAY } from '../utils'
-import { Ava, CustomCheckbox, StatusTag, Tabs, Empty } from '../components/UI'
+import { abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
+import { Ava, Tabs, Empty } from '../components/UI'
 
 const TABS = [
   { key: 'all', label: 'Всі' },
@@ -10,10 +10,11 @@ const TABS = [
   { key: 'checked', label: 'Сьогодні' },
 ]
 
-export default function MembersPage({ members, abons, role, onOpen, onAdd, onDeleteMany, initialTab }) {
+export default function MembersPage({ members, abons, role, onOpen, onAdd, onDeleteMany, onDeleteMember, initialTab }) {
   const [tab, setTab] = useState(initialTab || 'all')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(new Set())
+  const [showDuplicates, setShowDuplicates] = useState(false)
 
   const shown = useMemo(() => {
     let list = [...members]
@@ -26,6 +27,17 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
     list.sort((a, b) => a.name.localeCompare(b.name, 'uk'))
     return list
   }, [members, abons, tab, query])
+
+  // Duplicate groups
+  const dupGroups = useMemo(() => {
+    const groups = {}
+    members.forEach(m => {
+      const key = m.name.trim().toLowerCase()
+      if (!groups[key]) groups[key] = []
+      groups[key].push(m)
+    })
+    return Object.values(groups).filter(g => g.length > 1)
+  }, [members])
 
   function toggleSelect(id, e) {
     e.stopPropagation()
@@ -68,6 +80,12 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
           <button className="btn btn-acc" style={{ flex: 1, padding: 12, fontSize: 15 }} onClick={onAdd}>
             + Новий клієнт
           </button>
+          <button
+            onClick={() => setShowDuplicates(true)}
+            style={{ flexShrink: 0, padding: '0 14px', borderRadius: 'var(--r2)', background: 'var(--s1)', border: '1px solid var(--brd)', color: dupGroups.length ? 'var(--ylw)' : 'var(--txt2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', position: 'relative' }}
+          >
+            👥 Дублі{dupGroups.length > 0 && <span style={{ marginLeft: 4, background: 'var(--ylw)', color: '#000', borderRadius: 8, padding: '1px 5px', fontSize: 11 }}>{dupGroups.length}</span>}
+          </button>
         </div>
 
         {/* Tabs */}
@@ -78,53 +96,123 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
       {role === 'admin' && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-          padding: '8px 10px', background: 'var(--s2)', borderRadius: 'var(--r2)',
-          border: '1px solid var(--brd)'
+          padding: '8px 0', borderBottom: '1px solid var(--brd)'
         }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', flex: 1, fontSize: 13, color: 'var(--txt2)' }}>
-            <CustomCheckbox
-              checked={shown.length > 0 && selected.size === shown.length}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--txt2)', cursor: 'pointer' }}>
+            <input type="checkbox"
+              checked={selected.size > 0 && selected.size === shown.length}
               onChange={selectAll}
+              style={{ width: 16, height: 16 }}
             />
-            Вибрати всіх
+            Вибрати всіх ({shown.length})
           </label>
-          <button
-            className="btn btn-red btn-sm"
-            style={{ opacity: selected.size > 0 ? 1 : 0.35, pointerEvents: selected.size > 0 ? 'auto' : 'none' }}
-            onClick={deleteSelected}
-          >
-            🗑 {selected.size > 0 ? `Видалити (${selected.size})` : 'Видалити'}
-          </button>
+          {selected.size > 0 && (
+            <button className="btn-sm btn-red btn" style={{ marginLeft: 'auto', width: 'auto' }} onClick={deleteSelected}>
+              🗑 Видалити ({selected.size})
+            </button>
+          )}
         </div>
       )}
 
       {/* List */}
-      {shown.length === 0 ? <Empty text="Клієнтів не знайдено" /> : (
-        <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px' }}>
-          {shown.map(m => {
-            const ab = getActiveAbon(m.id, abons)
-            const st = ab ? abonStatus(ab) : null
-            const sub = ab ? (ab.type === 'month' ? 'до ' + fmtDate(ab.endDate) : ab.type === 'trainer' ? 'Абонемент тренера' : 'Разовий') : 'Без абонементу'
-            return (
-              <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
-                {role === 'admin' && (
-                  <CustomCheckbox
-                    checked={selected.has(m.id)}
-                    onChange={() => {}}
-                    onClick={e => toggleSelect(m.id, e)}
-                  />
-                )}
-                <Ava name={m.name} />
-                <div className="mi-info">
-                  <div className="mi-name">{m.name}</div>
-                  <div className="mi-sub">{sub}</div>
-                </div>
-                <StatusTag status={st} />
+      {shown.length === 0 ? (
+        <Empty />
+      ) : (
+        shown.map(m => {
+          const ab = getActiveAbon(m.id, abons)
+          const st = ab ? abonStatus(ab) : null
+          return (
+            <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
+              {role === 'admin' && (
+                <input type="checkbox"
+                  checked={selected.has(m.id)}
+                  onChange={e => toggleSelect(m.id, e)}
+                  onClick={e => e.stopPropagation()}
+                  style={{ width: 17, height: 17, flexShrink: 0 }}
+                />
+              )}
+              <Ava name={m.name} />
+              <div className="mi-info">
+                <div className="mi-name">{m.name}</div>
+                <div className="mi-sub">{m.phone || (st ? STATUS_LABEL[st] : 'Без абонементу')}</div>
               </div>
-            )
-          })}
-        </div>
+              <span className={`ai-tag ${st ? STATUS_TAG[st] : 'tag-gray'}`}>
+                {st ? STATUS_LABEL[st] : '—'}
+              </span>
+            </div>
+          )
+        })
       )}
+
+      {/* Duplicates modal */}
+      {showDuplicates && (
+        <DuplicatesModal
+          dupGroups={dupGroups}
+          abons={abons}
+          onDelete={async (id) => { await onDeleteMember(id) }}
+          onClose={() => setShowDuplicates(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Duplicates modal ──────────────────────────────────────────────────────────
+function DuplicatesModal({ dupGroups, abons, onDelete, onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto', paddingBottom: 40 }}>
+      <div className="mhdr">
+        <button className="back" onClick={onClose}>
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+            <path d="M7 1L1 7l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Назад
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>👥 Дублікати</div>
+          <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
+            {dupGroups.length > 0 ? `${dupGroups.length} груп з дублікатами` : 'дублікатів не знайдено'}
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: 14 }}>
+        {dupGroups.length === 0 ? (
+          <div className="empty">✅ Всі клієнти унікальні</div>
+        ) : (
+          dupGroups.map((group, gi) => (
+            <div key={gi} className="card" style={{ marginBottom: 12 }}>
+              <div className="ct">{group[0].name} — {group.length} записи</div>
+              {group.map(m => {
+                const ab = getActiveAbon(m.id, abons)
+                const st = ab ? abonStatus(ab) : null
+                const stColor = st === 'active' ? 'var(--grn)' : st === 'ending' ? 'var(--ylw)' : 'var(--txt2)'
+                return (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--brd)' }}>
+                    <Ava name={m.name} size={34} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>{m.name}</div>
+                      <div style={{ fontSize: 12, color: stColor }}>
+                        {st ? STATUS_LABEL[st] : 'Без абонементу'}{m.phone ? ' · ' + m.phone : ''}
+                        {ab && ` · ${ab.type === 'trainer' ? ab.sessionsLeft + ' занять' : ab.endDate}`}
+                      </div>
+                    </div>
+                    <button
+                      className="icon-btn del"
+                      title="Видалити"
+                      onClick={async () => {
+                        const hasAbon = !!ab
+                        const warn = hasAbon ? '\n⚠️ Є активний абонемент!' : ''
+                        if (!confirm(`Видалити «${m.name}»?${warn}\nЦю дію не можна скасувати.`)) return
+                        await onDelete(m.id)
+                      }}
+                    >🗑️</button>
+                  </div>
+                )
+              })}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   )
 }
