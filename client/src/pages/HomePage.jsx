@@ -35,25 +35,25 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
       <div className="stats2">
         <div className="sc clickable" onClick={() => onNavigate('members', 'active')}>
           <div className="sv">{active}</div>
-          <div className="sl">✅ Активних</div>
+          <div className="sl">Активних абон.</div>
         </div>
         <div className="sc clickable" onClick={() => onNavigate('checkin')}>
           <div className="sv" style={{ color: 'var(--grn)' }}>{checked}</div>
-          <div className="sl">📍 Сьогодні</div>
+          <div className="sl">Відмічено сьогодні</div>
         </div>
         {role === 'admin' && <>
           <div className="sc clickable" onClick={() => onNavigate('members', 'ending')}>
-            <div className="sv" style={{ color: ending > 0 ? 'var(--ylw)' : 'var(--txt2)' }}>{ending}</div>
-            <div className="sl">⚠️ Закінчуються</div>
+            <div className="sv" style={{ color: 'var(--ylw)' }}>{ending}</div>
+            <div className="sl">Закінчується скоро</div>
           </div>
           <div className="sc clickable" onClick={() => onNavigate('members', 'frozen')}>
             <div className="sv" style={{ color: '#88aaff' }}>{frozen}</div>
-            <div className="sl">❄️ Заморожені</div>
+            <div className="sl">Заморожених</div>
           </div>
         </>}
       </div>
 
-      {role === 'admin' && (
+      {role === 'admin' && (todayCash > 0 || todayCard > 0) && (
         <div className="stats3" style={{ marginBottom: 12 }}>
           <div className="sc">
             <div className="sv" style={{ color: 'var(--grn)' }}>{todayCash}</div>

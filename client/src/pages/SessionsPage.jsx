@@ -3,7 +3,7 @@ import {
   TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon,
   HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning
 } from '../utils'
-import { FRow, Ava } from '../components/UI'
+import { FRow, Ava, MethodPill } from '../components/UI'
 
 function MethodToggle({ value, onChange }) {
   return (
@@ -91,14 +91,6 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
     const hallTotal = count * SPLIT_HALL_FEE
     return { per, count, payingCount, trainerTotal, hallTotal }
   }, [splitClients, splitAmount])
-
-  // ── Today sessions (this trainer) ────────────────────────────────────────────
-  const todaySessions = useMemo(() =>
-    payments
-      .filter(p => p.kind === 'session' && p.date === TODAY &&
-        p.trainer === (uname || (role === 'trainer' ? 'Тренер' : 'Адмін')))
-      .sort((a, b) => (b.time || '').localeCompare(a.time || '')),
-    [payments, uname, role])
 
   // ── Save solo ─────────────────────────────────────────────────────────────────
   async function saveSolo() {
@@ -197,16 +189,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="pg">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>📋 Заняття</div>
-        {role === 'trainer' && (
-          <button
-            className="btn-sm"
-            style={{ background: 'linear-gradient(135deg,var(--acc),var(--acc2))', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontWeight: 600 }}
-            onClick={() => setShowAbonModal(true)}
-          >+ Продати абонемент</button>
-        )}
-      </div>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>📋 Заняття</div>
 
       <div className="card">
         <div className="ct">Нове заняття</div>
@@ -392,26 +375,17 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
         </button>
       </div>
 
-      {/* Today sessions */}
-      {todaySessions.length > 0 && (
-        <div className="card">
-          <div className="ct">Сьогодні</div>
-          {todaySessions.map(p => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--brd)' }}>
-              <span>{p.sessionType === 'split' ? '👥' : '👤'}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.memberName}</div>
-                <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
-                  {p.time}{p.sessionType === 'split' ? ` · ${p.splitCount} ос.` : ''}{p.note ? ` · ${p.note}` : ''}
-                </div>
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--grn)', fontWeight: 600, flexShrink: 0 }}>
-                {p.trainerEarning || p.amount} грн
-              </div>
-            </div>
-          ))}
+      {/* Trainer abon sale card */}
+      <div className="card">
+        <div className="ct">🎫 Абонемент від тренера</div>
+        <div style={{ fontSize: 13, color: 'var(--txt2)', marginBottom: 12 }}>
+          Продаж пакету занять клієнту. Заняття списуються автоматично при відмітці "Один" з включеним списанням.
         </div>
-      )}
+        <button className="btn btn-acc btn-sm" onClick={() => setShowAbonModal(true)}>+ Продати абонемент на заняття</button>
+      </div>
+
+      {/* Today sessions (stats + list) */}
+      <TodaySessionsBlock payments={payments} uname={uname} role={role} />
 
       {/* Trainer abon modal */}
       {showAbonModal && (
@@ -425,6 +399,78 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
         />
       )}
     </div>
+  )
+}
+
+// ── Today sessions (statistics + list), matches original renderSessionsToday ──
+function TodaySessionsBlock({ payments, uname, role }) {
+  const myName = uname || (role === 'trainer' ? 'Тренер' : '')
+  const today = useMemo(() =>
+    payments.filter(p => p.kind === 'session' && p.date === TODAY)
+      .sort((a, b) => (b.time || '').localeCompare(a.time || '')),
+    [payments])
+  const mine = myName ? today.filter(p => p.trainer === myName) : today
+
+  const cash = mine.filter(p => p.method !== 'card').reduce((s, p) => s + (p.amount || 0), 0)
+  const card = mine.filter(p => p.method === 'card').reduce((s, p) => s + (p.amount || 0), 0)
+  const trainerCash = mine.reduce((s, p) => s + (p.trainerEarning || 0), 0)
+
+  return (
+    <>
+      <div className="stats3">
+        <div className="sc"><div className="sv" style={{ color: 'var(--grn)' }}>{cash}</div><div className="sl">💵 Готівка</div></div>
+        <div className="sc"><div className="sv" style={{ color: 'var(--acc)' }}>{card}</div><div className="sl">💳 Картка</div></div>
+        {trainerCash ? (
+          <div className="sc"><div className="sv" style={{ color: 'var(--grn)', fontWeight: 700 }}>{trainerCash}</div><div className="sl">💵 Каса тренера</div></div>
+        ) : (
+          <div className="sc"><div className="sv">{cash + card}</div><div className="sl">Всього сьогодні</div></div>
+        )}
+      </div>
+
+      {today.length === 0 ? (
+        <div className="card"><div className="empty">Сьогодні занять ще не було</div></div>
+      ) : (
+        <div className="card">
+          <div className="ct">Заняття сьогодні ({today.length})</div>
+          {today.map(p => {
+            const isSplit = p.sessionType === 'split'
+            const isAbonSale = p.sessionType === 'trainer_abon_sale'
+            const isDeducted = p.sessionType === 'solo' && p.trainerAbonId
+            const icon = isAbonSale ? '🎫' : isSplit ? '👥' : '👤'
+            const names = isSplit && p.splitClients ? p.splitClients.join(', ') : (p.memberName || '?')
+            return (
+              <div key={p.id} className="payment-item">
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{icon} {names}</div>
+                  <div style={{ color: 'var(--txt2)' }}>
+                    {p.time || ''}{p.trainer ? ' · ' + p.trainer : ''}{p.note ? ' · ' + p.note : ''}
+                    {isSplit ? ` · спліт ${p.splitCount} ос.${p.payingCount !== undefined && p.payingCount < p.splitCount ? ` (${p.splitCount - p.payingCount} з абон.)` : ''}` : ''}
+                    {isDeducted ? ' · списано з абонементу' : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  {p.trainerEarning ? (
+                    <>
+                      <span style={{ fontSize: 11, color: 'var(--txt2)' }}>клієнт:</span>
+                      <MethodPill method={p.method} />
+                      <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.trainerEarning}</span>
+                      <span style={{ fontSize: 11, color: 'var(--txt2)', marginLeft: 4 }}>зал:</span>
+                      <MethodPill method={p.hallMethod || p.method} />
+                      <span style={{ color: 'var(--acc)', fontWeight: 600 }}>+{p.hallEarning}</span>
+                    </>
+                  ) : (
+                    <>
+                      <MethodPill method={p.method} />
+                      <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.amount}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </>
   )
 }
 
