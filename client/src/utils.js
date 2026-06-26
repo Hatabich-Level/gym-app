@@ -53,12 +53,7 @@ export const STATUS_TAG = {
 }
 
 export function getActiveAbon(memberId, abons) {
-  const active = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
-  if (active.length === 0) return null
-  if (active.length === 1) return active[0]
-  // Захист від забруднених даних: якщо активних записів більше одного,
-  // беремо найновіший за датою початку (а не довільний перший).
-  return active.slice().sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0]
+  return abons.find(a => a.memberId === memberId && a.active) || null
 }
 
 export function getActiveTrainerAbon(memberId, abons) {
