@@ -44,9 +44,10 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 
 /* Search */
 .sr{position:relative;margin-bottom:12px}
-.sr input{width:100%;background:var(--s1);border:1px solid var(--brd);border-radius:var(--r2);padding:10px 12px 10px 36px;color:var(--txt);font-size:15px;outline:none}
+.sr input{width:100%;background:var(--s1);border:1px solid var(--brd);border-radius:var(--r2);padding:10px 12px 10px 38px;color:var(--txt);font-size:15px;outline:none;-webkit-appearance:none;appearance:none;box-sizing:border-box}
 .sr input:focus{border-color:var(--acc)}
-.sr svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--txt2);pointer-events:none}
+.sr input::-webkit-search-decoration,.sr input::-webkit-search-cancel-button,.sr input::-webkit-search-results-button,.sr input::-webkit-search-results-decoration{-webkit-appearance:none}
+.sr svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--txt2);pointer-events:none}
 
 /* Modal */
 .modal{position:fixed;inset:0;background:var(--bg);z-index:200;overflow-y:auto;padding-bottom:40px}
@@ -176,7 +177,7 @@ select:focus,input:focus{border-color:var(--acc)}
 @media (min-width: 720px){
   body{background:#070810}
   .hdr,.pg,.nav,.reminder-banner,.fullscreen{
-    max-width:640px;margin-left:auto;margin-right:auto;
+    width:100%;max-width:640px;margin-left:auto;margin-right:auto;box-sizing:border-box;
   }
   .hdr{
     left:0;right:0;border-radius:0 0 var(--r) var(--r);
@@ -193,8 +194,8 @@ select:focus,input:focus{border-color:var(--acc)}
     box-shadow:0 0 40px rgba(0,0,0,.3);
     border-left:1px solid var(--brd);border-right:1px solid var(--brd);
   }
-  .modal,.fullscreen{max-width:640px;margin:0 auto;border-left:1px solid var(--brd);border-right:1px solid var(--brd)}
-  .mhdr{max-width:640px;margin-left:auto;margin-right:auto;left:0;right:0}
+  .modal,.fullscreen{width:100%;max-width:640px;margin:0 auto;border-left:1px solid var(--brd);border-right:1px solid var(--brd);box-sizing:border-box}
+  .mhdr{width:100%;max-width:640px;margin-left:auto;margin-right:auto;left:0;right:0;box-sizing:border-box}
 
   /* картки отримують легку рамку для глибини на світлішому тлі сторінки */
   .card{box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
