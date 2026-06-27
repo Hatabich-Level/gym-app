@@ -25,9 +25,10 @@ export default function FinancePage({ members, abons, payments, manualDebts, rol
 
 function sumBy(arr, method) {
   return arr.reduce((s, p) => {
-    const matches = method === 'cash' ? p.method !== 'card' : p.method === 'card'
+    // для занять каса залу прив'язана до hallMethod (тренер→зал), а не method (клієнт→тренер)
+    const payMethod = p.kind === 'session' ? (p.hallMethod || p.method) : p.method
+    const matches = method === 'cash' ? payMethod !== 'card' : payMethod === 'card'
     if (!matches) return s
-    // для занять рахуємо лише касу залу, не повну суму клієнта
     const amt = p.kind === 'session' ? (p.hallEarning || 0) : (p.amount || 0)
     return s + amt
   }, 0)
@@ -128,6 +129,7 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {
         <div className="ct">Останні платежі</div>
         {recent.map(p => {
           const hallAmt = p.kind === 'session' ? (p.hallEarning||p.amount||0) : p.amount
+          const hallMethodDisplay = p.kind === 'session' ? (p.hallMethod || p.method) : p.method
           const who = p.kind === 'session' ? (p.memberName||'?') : (members.find(m=>m.id===p.memberId)||{name:'?'}).name
           return (
             <div key={p.id} className="payment-item">
@@ -136,7 +138,7 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {
                 <div style={{color:'var(--txt2)'}}>{fmtDate(p.date)}{p.note?' · '+p.note:''}{p.trainer?' · '+p.trainer:''}</div>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
-                <MethodPill method={p.method} />
+                <MethodPill method={hallMethodDisplay} />
                 <span style={{color:'var(--grn)',fontWeight:600}}>+{hallAmt}</span>
                 <button className="alert-dismiss" onClick={() => { if(confirm('Видалити платіж?')) deletePayment(p.id) }}>✕</button>
               </div>
@@ -264,7 +266,7 @@ function PayAbonDebtModal({ debt, memberName, onSave, onClose }) {
   const [method, setMethod] = useState('cash')
   const [note, setNote] = useState('')
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto' }}>
+    <div className="fullscreen" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto' }}>
       <div className="mhdr"><button className="back" onClick={onClose}>← Назад</button><span style={{ fontWeight: 600 }}>Оплата абонементу</span></div>
       <div style={{ padding: 14 }}>
         <div className="card" style={{ marginBottom: 14 }}>
@@ -342,7 +344,7 @@ function DebtModal({ members, existing, onSave, onClose }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto', paddingBottom: 40 }}>
+    <div className="fullscreen" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto', paddingBottom: 40 }}>
       <div className="mhdr">
         <button className="back" onClick={onClose}>← Назад</button>
         <span style={{ fontWeight: 600 }}>{existing ? 'Редагувати боржника' : 'Новий боржник'}</span>
@@ -375,7 +377,7 @@ function PayDebtModal({ debt, onSave, onClose }) {
   const [method, setMethod] = useState('cash')
   const [note, setNote] = useState('')
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto' }}>
+    <div className="fullscreen" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto' }}>
       <div className="mhdr"><button className="back" onClick={onClose}>← Назад</button><span style={{ fontWeight: 600 }}>Записати оплату</span></div>
       <div style={{ padding: 14 }}>
         <div className="card" style={{ marginBottom: 14 }}>
