@@ -21,6 +21,12 @@ export default function MemberDetail({
   const trainerAbon = getActiveTrainerAbon(memberId, abons)
   const debt = activeAbon ? getMemberDebt(memberId, abons, payments) : 0
 
+  // Виявлення забруднених даних: кілька записів з active=true одночасно
+  // (могло лишитись зі старих версій). Показуємо найновіший, а решту
+  // пропонуємо деактивувати одним натисканням.
+  const allActiveRaw = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
+  const duplicateActiveAbons = allActiveRaw.filter(a => a.id !== (activeAbon && activeAbon.id))
+
   // Історія (все, крім поточного активного запису)
   const history = allAbons.filter(a => a.id !== (activeAbon && activeAbon.id))
 
@@ -28,6 +34,11 @@ export default function MemberDetail({
     .filter(p => p.memberId === memberId && p.kind !== 'session')
     .sort((a,b) => (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')))
     .slice(0, 10)
+
+  async function fixDuplicateAbons() {
+    if (!confirm(`Знайдено ${duplicateActiveAbons.length} застарілих "активних" запис(и/ів). Позначити їх неактивними? Поточний абонемент (${fmtDate(activeAbon?.startDate)}) залишиться без змін.`)) return
+    await pushAbons(duplicateActiveAbons.map(a => ({ ...a, active: false })))
+  }
 
   async function doFreeze(startDate) {
     const updated = { ...activeAbon, frozen: true, freezeStart: startDate }
@@ -51,11 +62,12 @@ export default function MemberDetail({
 
   async function deleteCurrentAbon() {
     if (!confirm(`Стерти поточний абонемент клієнта ${mem.name}? Цю дію не можна скасувати.`)) return
-    await pushAbons([{ ...activeAbon, active: false }])
+    const staleActive = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
+    await pushAbons(staleActive.map(a => ({ ...a, active: false })))
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 40 }}>
+    <div className="fullscreen" style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 40 }}>
       {/* Header */}
       <div className="mhdr">
         <button className="back" onClick={onBack}>
@@ -95,6 +107,16 @@ export default function MemberDetail({
         {activeAbon && activeAbon.frozen && (
           <div className="frozen-banner">
             ❄️ Заморожено {daysDiff(activeAbon.freezeStart, TODAY)} дн. тому (з {fmtDate(activeAbon.freezeStart)}). Дні будуть додані до абонементу після розморозки.
+          </div>
+        )}
+
+        {/* Data-integrity warning: duplicate active abons */}
+        {duplicateActiveAbons.length > 0 && role === 'admin' && (
+          <div className="card" style={{ borderColor: 'rgba(255,51,102,.35)', background: 'rgba(255,51,102,.06)' }}>
+            <div style={{ fontSize: 13, color: 'var(--txt)', marginBottom: 10, lineHeight: 1.5 }}>
+              ⚠️ У клієнта знайдено {duplicateActiveAbons.length} застарілих запис(и/ів), позначених як "активні" одночасно з поточним абонементом. Показується найновіший, але радимо це полагодити.
+            </div>
+            <button className="btn btn-red btn-sm" onClick={fixDuplicateAbons}>🔧 Полагодити дублікати</button>
           </div>
         )}
 
@@ -192,7 +214,8 @@ export default function MemberDetail({
           activeAbon={activeAbon}
           memberName={mem.name}
           onSave={async (ab, payment) => {
-            if (activeAbon) await pushAbons([{ ...activeAbon, active: false }, ab])
+            const staleActive = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
+            if (staleActive.length) await pushAbons([...staleActive.map(a => ({ ...a, active: false })), ab])
             else await pushAbons([ab])
             if (payment) await pushPayment(payment)
             setModal(null)
