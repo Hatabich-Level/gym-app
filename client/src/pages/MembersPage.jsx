@@ -154,34 +154,36 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
       )}
 
       {/* List */}
-      {shown.length === 0 ? (
-        <Empty />
-      ) : (
-        shown.map(m => {
-          const ab = getActiveAbon(m.id, abons)
-          const st = ab ? abonStatus(ab) : null
-          return (
-            <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
-              {role === 'admin' && (
-                <input type="checkbox"
-                  checked={selected.has(m.id)}
-                  onChange={e => toggleSelect(m.id, e)}
-                  onClick={e => e.stopPropagation()}
-                  style={{ width: 17, height: 17, flexShrink: 0 }}
-                />
-              )}
-              <Ava name={m.name} />
-              <div className="mi-info">
-                <div className="mi-name">{m.name}</div>
-                <div className="mi-sub">{m.phone || (st ? STATUS_LABEL[st] : 'Без абонементу')}</div>
+      <div key={tab} style={{ animation: 'fadeIn .2s ease both' }}>
+        {shown.length === 0 ? (
+          <Empty />
+        ) : (
+          shown.map(m => {
+            const ab = getActiveAbon(m.id, abons)
+            const st = ab ? abonStatus(ab) : null
+            return (
+              <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
+                {role === 'admin' && (
+                  <input type="checkbox"
+                    checked={selected.has(m.id)}
+                    onChange={e => toggleSelect(m.id, e)}
+                    onClick={e => e.stopPropagation()}
+                    style={{ width: 17, height: 17, flexShrink: 0 }}
+                  />
+                )}
+                <Ava name={m.name} />
+                <div className="mi-info">
+                  <div className="mi-name">{m.name}</div>
+                  <div className="mi-sub">{m.phone || (st ? STATUS_LABEL[st] : 'Без абонементу')}</div>
+                </div>
+                <span className={`ai-tag ${st ? STATUS_TAG[st] : 'tag-gray'}`}>
+                  {st ? STATUS_LABEL[st] : '—'}
+                </span>
               </div>
-              <span className={`ai-tag ${st ? STATUS_TAG[st] : 'tag-gray'}`}>
-                {st ? STATUS_LABEL[st] : '—'}
-              </span>
-            </div>
-          )
-        })
-      )}
+            )
+          })
+        )}
+      </div>
 
       {/* Duplicates modal */}
       {showDuplicates && (
@@ -199,7 +201,7 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
 // ── Duplicates modal ──────────────────────────────────────────────────────────
 function DuplicatesModal({ dupGroups, abons, onDelete, onClose }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto', paddingBottom: 40 }}>
+    <div className="fullscreen" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto', paddingBottom: 40 }}>
       <div className="mhdr">
         <button className="back" onClick={onClose}>
           <svg width="8" height="14" viewBox="0 0 8 14" fill="none">

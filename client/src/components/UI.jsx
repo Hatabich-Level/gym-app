@@ -5,6 +5,7 @@ export function LoadingOverlay({ show }) {
   if (!show) return null
   return (
     <div className="loading-overlay">
+      <span className="spinner" />
       <span>Завантаження...</span>
     </div>
   )

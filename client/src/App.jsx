@@ -163,6 +163,7 @@ export default function App() {
       {/* Member detail */}
       {memberDetailId && memberDetailId !== '__new__' && (
         <MemberDetail
+          key={memberDetailId}
           memberId={memberDetailId}
           members={store.members}
           abons={store.abons}
