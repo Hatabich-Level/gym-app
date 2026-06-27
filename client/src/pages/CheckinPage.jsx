@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { TODAY, fmtDate, uid, nowTime, abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
+import { TODAY, fmtDate, nowTime, abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
 import { Ava, StatusTag } from '../components/UI'
 
 export default function CheckinPage({ members, abons, payments, role, pushAbons, pushPayment }) {
@@ -40,21 +40,12 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
       ...selectedAbon,
       visits: [...(selectedAbon.visits||[]), { date: TODAY, time: nowTime() }]
     }
-    // for visit type, deactivate
+    // Разовий абонемент закривається одразу після одного відвідування —
+    // саме так в оригіналі: жодного платежу тут не створюється, бо оплата
+    // вже відбулась при продажу абонементу.
     if (updated.type === 'visit') updated.active = false
 
     await pushAbons([updated])
-
-    // add payment if visit type
-    if (selectedAbon.type === 'visit' && selectedAbon.price) {
-      const p = {
-        id: uid(), kind: 'abon', memberId: selectedId,
-        memberName: selectedMember?.name || '',
-        date: TODAY, time: nowTime(),
-        amount: selectedAbon.price, method: 'cash'
-      }
-      await pushPayment(p)
-    }
 
     alert(`✅ ${selectedMember?.name} відмічено!`)
     setSelectedId(null)

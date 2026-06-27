@@ -196,19 +196,8 @@ select:focus,input:focus{border-color:var(--acc)}
   .modal,.fullscreen{max-width:640px;margin:0 auto;border-left:1px solid var(--brd);border-right:1px solid var(--brd)}
   .mhdr{max-width:640px;margin-left:auto;margin-right:auto;left:0;right:0}
 
-  /* кнопки дій не тягнуться на всю ширину, центруються і мають розумний максимум */
-  .btn{max-width:420px;margin-left:auto;margin-right:auto}
-  .btn+.btn{margin-top:8px}
-  .checkin-btn{max-width:420px;margin-left:auto;margin-right:auto}
-
-  /* парні перемикачі (тип заняття / спосіб оплати / роль) трохи компактніші й не розтягуються на весь екран */
-  .method-toggle,.role-toggle{max-width:420px;margin-left:auto;margin-right:auto}
-
   /* картки отримують легку рамку для глибини на світлішому тлі сторінки */
   .card{box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
-
-  /* кнопки в gridі (наприклад заморозити / новий абон.) лишаються грідом, але обмежені по ширині */
-  .grid2{max-width:420px;margin-left:auto;margin-right:auto}
 
   .login-box{max-width:380px}
 }
