@@ -2,22 +2,22 @@ import React, { useState } from 'react'
 import { api } from '../api'
 
 export default function LoginPage({ onLogin }) {
-  const [role, setRole] = useState('admin')
-  const [name, setName] = useState('')
+  const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function doLogin() {
+    if (!login.trim()) { setError('Введіть логін'); return }
     if (!password) { setError('Введіть пароль'); return }
-    if (role === 'trainer' && !name.trim()) { setError('Введіть ваше ім\'я'); return }
     setLoading(true); setError('')
     try {
-      const data = await api('/login', 'POST', { role, password, name: name.trim() })
+      const data = await api('/login', 'POST', { login: login.trim(), password })
       localStorage.setItem('gym_token', data.token)
       localStorage.setItem('gym_role', data.role)
       localStorage.setItem('gym_uname', data.name || '')
-      onLogin({ role: data.role, name: data.name || '' })
+      localStorage.setItem('gym_uid', data.uid || '')
+      onLogin({ role: data.role, name: data.name || '', uid: data.uid || '' })
     } catch (e) {
       setError(e.message)
     } finally {
@@ -35,27 +35,18 @@ export default function LoginPage({ onLogin }) {
           <div style={{ fontSize: 40, marginBottom: 8 }}>🏋️</div>
           <div style={{ fontSize: 22, fontWeight: 700 }}>Спортзал</div>
         </div>
-        <div className="role-toggle">
-          <button className={`role-btn ${role === 'admin' ? 'on' : ''}`} onClick={() => setRole('admin')}>
-            👑 Адмін
-          </button>
-          <button className={`role-btn ${role === 'trainer' ? 'on' : ''}`} onClick={() => setRole('trainer')}>
-            🏋️ Тренер
-          </button>
+        <div className="frow">
+          <div className="flabel">Логін</div>
+          <input
+            type="text" placeholder="напр: admin" autoComplete="username"
+            value={login} onChange={e => setLogin(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && doLogin()}
+          />
         </div>
-        {role === 'trainer' && (
-          <div className="frow">
-            <div className="flabel">Ваше ім'я</div>
-            <input
-              type="text" placeholder="напр: Ярослав"
-              value={name} onChange={e => setName(e.target.value)}
-            />
-          </div>
-        )}
         <div className="frow">
           <div className="flabel">Пароль</div>
           <input
-            type="password" placeholder="••••••••"
+            type="password" placeholder="••••••••" autoComplete="current-password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && doLogin()}

@@ -6,6 +6,8 @@ export function useStore() {
   const [abons, setAbons] = useState([])
   const [payments, setPayments] = useState([])
   const [manualDebts, setManualDebts] = useState([])
+  const [users, setUsers] = useState([])
+  const [auditLog, setAuditLog] = useState([])
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
@@ -16,6 +18,8 @@ export function useStore() {
       setAbons(st.abons || [])
       setPayments(st.payments || [])
       setManualDebts(st.manualDebts || [])
+      setUsers(st.users || [])
+      setAuditLog(st.auditLog || [])
       return st
     } finally {
       setLoading(false)
@@ -116,11 +120,37 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
+  // ── User management (тільки головний адмін) ──────────────────────────────────
+  const createUser = useCallback(async (data) => {
+    setLoading(true)
+    try {
+      const user = await api('/users', 'POST', data)
+      setUsers(prev => [...prev, user])
+      return user
+    } finally { setLoading(false) }
+  }, [])
+
+  const deleteUser = useCallback(async (id) => {
+    setLoading(true)
+    try {
+      await api('/users/' + id, 'DELETE')
+      setUsers(prev => prev.filter(u => u.id !== id))
+    } finally { setLoading(false) }
+  }, [])
+
+  const changeUserPassword = useCallback(async (id, password) => {
+    setLoading(true)
+    try {
+      await api('/users/' + id + '/password', 'POST', { password })
+    } finally { setLoading(false) }
+  }, [])
+
   return {
-    members, abons, payments, manualDebts, loading,
+    members, abons, payments, manualDebts, users, auditLog, loading,
     load, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,
+    createUser, deleteUser, changeUserPassword,
     setAbons, setMembers
   }
 }

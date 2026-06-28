@@ -11,6 +11,8 @@ export default function MemberDetail({
 }) {
   const mem = members.find(m => m.id === memberId)
   const [modal, setModal] = useState(null) // 'edit'|'abon'|'pay'|'extend'|'freeze'
+  const isOwner = role === 'owner'
+  const isAdmin = role === 'owner' || role === 'admin'
 
   if (!mem) return null
 
@@ -80,7 +82,7 @@ export default function MemberDetail({
           <div style={{ fontWeight: 600, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mem.name}</div>
           <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{mem.phone || ''}</div>
         </div>
-        {role === 'admin' && (
+        {isOwner && (
           <button className="btn-sm btn-gray" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8 }} onClick={() => setModal('edit')}>
             ✏️ Редагувати
           </button>
@@ -111,7 +113,7 @@ export default function MemberDetail({
         )}
 
         {/* Data-integrity warning: duplicate active abons */}
-        {duplicateActiveAbons.length > 0 && role === 'admin' && (
+        {duplicateActiveAbons.length > 0 && isAdmin && (
           <div className="card" style={{ borderColor: 'rgba(255,51,102,.35)', background: 'rgba(255,51,102,.06)' }}>
             <div style={{ fontSize: 13, color: 'var(--txt)', marginBottom: 10, lineHeight: 1.5 }}>
               ⚠️ У клієнта знайдено {duplicateActiveAbons.length} застарілих запис(и/ів), позначених як "активні" одночасно з поточним абонементом. Показується найновіший, але радимо це полагодити.
@@ -131,7 +133,7 @@ export default function MemberDetail({
             onDeleteAbon={deleteCurrentAbon}
           />
         ) : (
-          role === 'admin' && (
+          isAdmin && (
             <div className="card" style={{ textAlign: 'center', padding: 28 }}>
               <div style={{ fontSize: 40, marginBottom: 10 }}>🎫</div>
               <div style={{ fontSize: 15, marginBottom: 16, color: 'var(--txt2)' }}>Немає активного абонементу</div>
@@ -140,7 +142,7 @@ export default function MemberDetail({
           )
         )}
 
-        {role === 'admin' && activeAbon && (
+        {isAdmin && activeAbon && (
           <button className="btn btn-gray" style={{ marginBottom: 12 }} onClick={() => setModal('abon')}>
             + Новий абонемент
           </button>
@@ -172,7 +174,7 @@ export default function MemberDetail({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <MethodPill method={p.method} />
                   <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.amount} грн</span>
-                  {role === 'admin' && (
+                  {isAdmin && (
                     <IconBtn onClick={() => { if (confirm('Видалити платіж?')) deletePayment(p.id) }} title="Видалити">✕</IconBtn>
                   )}
                 </div>
@@ -190,7 +192,7 @@ export default function MemberDetail({
         )}
 
         {/* Danger zone */}
-        {role === 'admin' && (
+        {isOwner && (
           <button className="btn btn-red" onClick={() => {
             if (confirm(`Видалити клієнта ${mem.name}?\n\nВсі абонементи будуть видалені.`)) {
               onDeleteMember(memberId)
@@ -263,6 +265,7 @@ export default function MemberDetail({
 
 // ── Active abon card ──────────────────────────────────────────────────────────
 function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, onUnfreeze, onDeleteAbon }) {
+  const isAdmin = role === 'owner' || role === 'admin'
   const st = status
   const tagClass = STATUS_TAG[st] || 'tag-gray'
   const isMonth = abon.type === 'month'
@@ -331,7 +334,7 @@ function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, o
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--grn)' }}>✅ Відмічено сьогодні о {todayVisit.time}</div>
       )}
 
-      {role === 'admin' && (
+      {isAdmin && (
         <div className="grid2" style={{ marginTop: 10, marginBottom: 0 }}>
           {debt > 0 && (
             <button className="btn btn-grn btn-sm" onClick={onPay}>💰 Оплата</button>

@@ -9,6 +9,8 @@ const ExcelJS = require('exceljs');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Резервні паролі для самого першого старту (коли таблиця users ще порожня).
+// Після першого входу рекомендується створити власні акаунти і змінити ці паролі.
 const ADMIN_PASSWORD   = process.env.ADMIN_PASSWORD   || 'admin123';
 const TRAINER_PASSWORD = process.env.TRAINER_PASSWORD || 'trener123';
 const SECRET           = process.env.SECRET || 'change-me-secret';
@@ -30,6 +32,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get(/^(?!\/api).*$/, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// ── Password hashing (scrypt, вбудований у Node — без зовнішніх залежностей) ──
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return salt + ':' + hash;
+}
+function verifyPassword(password, stored) {
+  if (!stored || !stored.includes(':')) return false;
+  const [salt, hash] = stored.split(':');
+  const check = crypto.scryptSync(password, salt, 64).toString('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
+  } catch { return false; }
+}
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 function sign(payload) {
@@ -56,8 +73,14 @@ function auth(req, res, next) {
   req.user = user;
   next();
 }
-function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+// Тільки головний адмін (owner)
+function ownerOnly(req, res, next) {
+  if (req.user.role !== 'owner') return res.status(403).json({ error: 'forbidden' });
+  next();
+}
+// Головний адмін АБО адмін (2) — будь-який тип адміністратора
+function anyAdmin(req, res, next) {
+  if (req.user.role !== 'owner' && req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
   next();
 }
 
@@ -68,19 +91,62 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS abons        (id TEXT PRIMARY KEY, data JSONB NOT NULL);
     CREATE TABLE IF NOT EXISTS payments     (id TEXT PRIMARY KEY, data JSONB NOT NULL);
     CREATE TABLE IF NOT EXISTS manual_debts (id TEXT PRIMARY KEY, data JSONB NOT NULL);
+    CREATE TABLE IF NOT EXISTS users         (id TEXT PRIMARY KEY, data JSONB NOT NULL);
+    CREATE TABLE IF NOT EXISTS audit_log     (id TEXT PRIMARY KEY, data JSONB NOT NULL);
   `);
 
+  // Перший старт: якщо в таблиці users ще нікого немає — засіваємо
+  // головного адміна (owner) і одного тренера зі старих змінних середовища,
+  // щоб вхід працював так само, як і раніше.
+  const { rows } = await pool.query('SELECT id FROM users LIMIT 1');
+  if (!rows.length) {
+    const ownerId   = 'u_owner';
+    const trainerId = 'u_trainer1';
+    await upsert('users', [
+      { id: ownerId,   login: 'admin',   passwordHash: hashPassword(ADMIN_PASSWORD),   role: 'owner',   name: 'Власник',  createdAt: new Date().toISOString() },
+      { id: trainerId, login: 'trainer', passwordHash: hashPassword(TRAINER_PASSWORD), role: 'trainer', name: 'Тренер',   createdAt: new Date().toISOString() },
+    ]);
+    console.log('🌱 Створено стартові акаунти: login "admin" (owner), login "trainer" (trainer). Паролі — як у ADMIN_PASSWORD / TRAINER_PASSWORD. Радимо створити власні акаунти і змінити паролі в Налаштуваннях.');
+  }
 }
 
 // ── Auth API ──────────────────────────────────────────────────────────────────
-app.post('/api/login', (req, res) => {
-  const { role, password, name } = req.body || {};
-  const ok = (role === 'admin'   && password === ADMIN_PASSWORD) ||
-             (role === 'trainer' && password === TRAINER_PASSWORD);
-  if (!ok) return res.status(401).json({ error: 'Невірний пароль' });
-  const token = sign({ role, name: (name || '').slice(0, 40), exp: Date.now() + 1000 * 60 * 60 * 24 * 30 });
-  res.json({ token, role, name: name || '' });
+app.post('/api/login', async (req, res) => {
+  const { login, password } = req.body || {};
+  if (!login || !password) return res.status(400).json({ error: 'Введіть логін і пароль' });
+
+  const { rows } = await pool.query(
+    "SELECT data FROM users WHERE data->>'login' = $1",
+    [String(login).trim().toLowerCase()]
+  );
+  const user = rows[0] && rows[0].data;
+  if (!user || !verifyPassword(password, user.passwordHash)) {
+    return res.status(401).json({ error: 'Невірний логін або пароль' });
+  }
+
+  const token = sign({
+    uid: user.id, role: user.role, name: user.name || '',
+    exp: Date.now() + 1000 * 60 * 60 * 24 * 30
+  });
+  res.json({ token, role: user.role, name: user.name || '', login: user.login, uid: user.id });
 });
+
+// Поточний користувач (для перевірки токена після відкриття застосунку)
+app.get('/api/me', auth, (req, res) => {
+  res.json({ role: req.user.role, name: req.user.name || '', uid: req.user.uid });
+});
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+async function logAction(req, action, details) {
+  const entry = {
+    id: 'log_' + Date.now().toString(36) + Math.random().toString(36).slice(2),
+    action, details: details || {},
+    by: req.user.name ? req.user.name : req.user.role,
+    role: req.user.role,
+    at: new Date().toISOString()
+  };
+  try { await upsert('audit_log', [entry]); } catch (e) { console.error('audit log error:', e); }
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 app.get('/api/state', auth, async (req, res) => {
@@ -90,14 +156,27 @@ app.get('/api/state', auth, async (req, res) => {
     pool.query('SELECT data FROM payments'),
     pool.query('SELECT data FROM manual_debts'),
   ]);
-  res.json({
+
+  const out = {
     role: req.user.role,
     name: req.user.name || '',
     members:      m.rows.map(r => r.data),
     abons:        a.rows.map(r => r.data),
     payments:     p.rows.map(r => r.data),
     manualDebts:  md.rows.map(r => r.data),
-  });
+  };
+
+  // Лише власник бачить список акаунтів (без хешів паролів) і журнал дій
+  if (req.user.role === 'owner') {
+    const [u, log] = await Promise.all([
+      pool.query('SELECT data FROM users'),
+      pool.query('SELECT data FROM audit_log ORDER BY data->>\'at\' DESC LIMIT 300'),
+    ]);
+    out.users = u.rows.map(r => { const { passwordHash, ...rest } = r.data; return rest; });
+    out.auditLog = log.rows.map(r => r.data);
+  }
+
+  res.json(out);
 });
 
 // ── Upsert helpers ────────────────────────────────────────────────────────────
@@ -117,18 +196,48 @@ async function upsert(table, items) {
   finally { client.release(); }
 }
 
-// Клієнти: тренер і адмін можуть додавати/редагувати
-app.post('/api/members/bulk', auth, async (req, res) => {
+// Клієнти: створення дозволено owner+admin; редагування існуючого (зміна
+// імені/телефону) — лише owner. Тренер не може ні створювати, ні редагувати.
+app.post('/api/members/bulk', auth, anyAdmin, async (req, res) => {
   const items = (req.body && req.body.items) || [];
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items required' });
+
+  if (req.user.role !== 'owner') {
+    // admin (не owner): дозволяємо лише створення нових клієнтів,
+    // не редагування вже існуючих імен/телефонів.
+    const ids = items.map(it => String(it.id));
+    const { rows } = await pool.query('SELECT id, data FROM members WHERE id = ANY($1)', [ids]);
+    const existing = new Map(rows.map(r => [r.id, r.data]));
+    for (const it of items) {
+      const prev = existing.get(String(it.id));
+      if (prev && (prev.name !== it.name || prev.phone !== it.phone)) {
+        return res.status(403).json({ error: 'Редагувати дані клієнта може лише головний адмін' });
+      }
+    }
+  } else {
+    // owner: логуємо, якщо це справді зміна (а не створення нового клієнта)
+    const ids = items.map(it => String(it.id));
+    const { rows } = await pool.query('SELECT id, data FROM members WHERE id = ANY($1)', [ids]);
+    const existing = new Map(rows.map(r => [r.id, r.data]));
+    for (const it of items) {
+      const prev = existing.get(String(it.id));
+      if (prev && (prev.name !== it.name || prev.phone !== it.phone)) {
+        await logAction(req, 'member_edit', { from: { name: prev.name, phone: prev.phone }, to: { name: it.name, phone: it.phone } });
+      }
+    }
+  }
+
   await upsert('members', items);
   res.json({ ok: true });
 });
 
 // Видалити декілька клієнтів — тільки адмін (має бути ДО /:id)
-app.delete('/api/members/delete-many', auth, adminOnly, async (req, res) => {
+app.delete('/api/members/delete-many', auth, ownerOnly, async (req, res) => {
   const ids = (req.body && req.body.ids) || [];
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids required' });
+
+  const { rows: toDelete } = await pool.query('SELECT data FROM members WHERE id = ANY($1)', [ids]);
+  const names = toDelete.map(r => r.data.name).filter(Boolean);
 
   const client = await pool.connect();
   try {
@@ -141,21 +250,62 @@ app.delete('/api/members/delete-many', auth, adminOnly, async (req, res) => {
   } catch (e) { await client.query('ROLLBACK'); throw e; }
   finally { client.release(); }
 
+  await logAction(req, 'members_delete_many', { names, count: ids.length });
   res.json({ ok: true });
 });
 
 // Видалити одного клієнта — тільки адмін
-app.delete('/api/members/:id', auth, adminOnly, async (req, res) => {
+app.delete('/api/members/:id', auth, ownerOnly, async (req, res) => {
   const id = req.params.id;
+  const { rows } = await pool.query('SELECT data FROM members WHERE id = $1', [id]);
+  const name = rows[0] && rows[0].data.name;
   await pool.query('DELETE FROM members WHERE id = $1', [id]);
   await pool.query("DELETE FROM abons WHERE data->>'memberId' = $1", [id]);
+  await logAction(req, 'member_delete', { name });
   res.json({ ok: true });
 });
 
-// Абонементи: відмітки, заморозка, нові абонементи
+// Абонементи: продаж/заморозка/продовження/стирання — owner+admin.
+// Тренер може лише відмічати відвідування (додавати запис у visits, і
+// закривати разовий абонемент при цьому) — решта змін йому заборонена.
 app.post('/api/abons/bulk', auth, async (req, res) => {
   const items = (req.body && req.body.items) || [];
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items required' });
+
+  if (req.user.role === 'trainer') {
+    const ids = items.map(it => String(it.id));
+    const { rows } = await pool.query('SELECT id, data FROM abons WHERE id = ANY($1)', [ids]);
+    const existing = new Map(rows.map(r => [r.id, r.data]));
+    for (const it of items) {
+      const prev = existing.get(String(it.id));
+      if (!prev) return res.status(403).json({ error: 'Тренер не може створювати абонементи' });
+      // Дозволено змінювати лише visits і active (закриття разового після відмітки).
+      // Все інше (price, paid, endDate, frozen, freezeStart, extraDays, type...) має лишитись незмінним.
+      const allowedDiffKeys = new Set(['visits', 'active']);
+      for (const key of Object.keys(it)) {
+        const same = JSON.stringify(it[key]) === JSON.stringify(prev[key]);
+        if (!same && !allowedDiffKeys.has(key)) {
+          return res.status(403).json({ error: 'Тренер може лише відмічати відвідування' });
+        }
+      }
+    }
+  } else if (req.user.role !== 'owner' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'forbidden' });
+  } else {
+    // owner/admin: логуємо стирання абонементу (active true -> false поза чекіном)
+    const ids = items.map(it => String(it.id))
+    const { rows } = await pool.query('SELECT id, data FROM abons WHERE id = ANY($1)', [ids])
+    const existing = new Map(rows.map(r => [r.id, r.data]))
+    for (const it of items) {
+      const prev = existing.get(String(it.id))
+      if (prev && prev.active && it.active === false) {
+        const { rows: memRows } = await pool.query('SELECT data FROM members WHERE id = $1', [it.memberId])
+        const memberName = memRows[0] && memRows[0].data.name
+        await logAction(req, 'abon_deactivate', { memberName, abonType: it.type })
+      }
+    }
+  }
+
   await upsert('abons', items);
   res.json({ ok: true });
 });
@@ -173,35 +323,41 @@ app.post('/api/payments', auth, async (req, res) => {
 });
 
 // Скинути абонементи — тільки адмін
-app.post('/api/abons/reset', auth, adminOnly, async (req, res) => {
+app.post('/api/abons/reset', auth, ownerOnly, async (req, res) => {
   await pool.query('DELETE FROM abons');
+  await logAction(req, 'reset_abons', {});
   res.json({ ok: true });
 });
 
 // Скинути касу — тільки адмін
-app.post('/api/payments/reset', auth, adminOnly, async (req, res) => {
+app.post('/api/payments/reset', auth, ownerOnly, async (req, res) => {
   await pool.query('DELETE FROM payments');
+  await logAction(req, 'reset_payments', {});
   res.json({ ok: true });
 });
 
 // Скинути все — тільки адмін
-app.post('/api/reset/all', auth, adminOnly, async (req, res) => {
+app.post('/api/reset/all', auth, ownerOnly, async (req, res) => {
   await pool.query('DELETE FROM abons');
   await pool.query('DELETE FROM payments');
   await pool.query('DELETE FROM members');
+  await logAction(req, 'reset_all', {});
   res.json({ ok: true });
 });
 
 // Видалення платежу — тільки адмін
-app.delete('/api/payments/:id', auth, adminOnly, async (req, res) => {
+app.delete('/api/payments/:id', auth, anyAdmin, async (req, res) => {
+  const { rows } = await pool.query('SELECT data FROM payments WHERE id = $1', [req.params.id]);
+  const p = rows[0] && rows[0].data;
   await pool.query('DELETE FROM payments WHERE id = $1', [req.params.id]);
+  if (p) await logAction(req, 'payment_delete', { memberName: p.memberName, amount: p.amount, date: p.date });
   res.json({ ok: true });
 });
 
 // ── Ручні борги ───────────────────────────────────────────────────────────────
 
 // Створити або оновити боржника
-app.post('/api/manual-debts', auth, async (req, res) => {
+app.post('/api/manual-debts', auth, anyAdmin, async (req, res) => {
   const d = req.body;
   if (!d || !d.id || !d.name) return res.status(400).json({ error: 'Потрібно id і name' });
   d.createdBy = req.user.role + (req.user.name ? ':' + req.user.name : '');
@@ -210,7 +366,7 @@ app.post('/api/manual-debts', auth, async (req, res) => {
 });
 
 // Записати часткову/повну оплату боргу (зменшує remaining)
-app.post('/api/manual-debts/:id/pay', auth, async (req, res) => {
+app.post('/api/manual-debts/:id/pay', auth, anyAdmin, async (req, res) => {
   const { rows } = await pool.query('SELECT data FROM manual_debts WHERE id = $1', [req.params.id]);
   if (!rows.length) return res.status(404).json({ error: 'Не знайдено' });
   const d = rows[0].data;
@@ -248,8 +404,65 @@ app.post('/api/manual-debts/:id/pay', auth, async (req, res) => {
 });
 
 // Видалити боржника — тільки адмін
-app.delete('/api/manual-debts/:id', auth, adminOnly, async (req, res) => {
+app.delete('/api/manual-debts/:id', auth, anyAdmin, async (req, res) => {
   await pool.query('DELETE FROM manual_debts WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// ── Керування акаунтами (тільки головний адмін / owner) ────────────────────────
+
+// Список акаунтів — вже передається через /api/state для owner, але лишаємо
+// окремий маршрут для зручності/повторного запиту.
+app.get('/api/users', auth, ownerOnly, async (req, res) => {
+  const { rows } = await pool.query('SELECT data FROM users');
+  res.json(rows.map(r => { const { passwordHash, ...rest } = r.data; return rest; }));
+});
+
+// Створити новий акаунт (admin або trainer; owner можна створити лише вручну в базі)
+app.post('/api/users', auth, ownerOnly, async (req, res) => {
+  const { login, password, name, role } = req.body || {};
+  if (!login || !password || !role) return res.status(400).json({ error: 'Потрібно логін, пароль і роль' });
+  if (!['admin', 'trainer'].includes(role)) return res.status(400).json({ error: 'Роль має бути admin або trainer' });
+  if (password.length < 4) return res.status(400).json({ error: 'Пароль має бути не менше 4 символів' });
+
+  const loginNorm = String(login).trim().toLowerCase();
+  const { rows } = await pool.query("SELECT id FROM users WHERE data->>'login' = $1", [loginNorm]);
+  if (rows.length) return res.status(400).json({ error: 'Такий логін вже існує' });
+
+  const user = {
+    id: 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2),
+    login: loginNorm,
+    passwordHash: hashPassword(password),
+    role, name: (name || '').slice(0, 40),
+    createdAt: new Date().toISOString()
+  };
+  await upsert('users', [user]);
+  await logAction(req, 'user_create', { login: loginNorm, role });
+
+  const { passwordHash, ...safe } = user;
+  res.json(safe);
+});
+
+// Змінити пароль акаунта (свій або будь-чий — лише owner)
+app.post('/api/users/:id/password', auth, ownerOnly, async (req, res) => {
+  const { password } = req.body || {};
+  if (!password || password.length < 4) return res.status(400).json({ error: 'Пароль має бути не менше 4 символів' });
+  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
+  const user = rows[0].data;
+  user.passwordHash = hashPassword(password);
+  await upsert('users', [user]);
+  await logAction(req, 'user_password_change', { login: user.login });
+  res.json({ ok: true });
+});
+
+// Видалити акаунт — не можна видалити власний і не можна видалити останнього owner'а
+app.delete('/api/users/:id', auth, ownerOnly, async (req, res) => {
+  if (req.params.id === req.user.uid) return res.status(400).json({ error: 'Не можна видалити власний акаунт' });
+  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
+  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+  await logAction(req, 'user_delete', { login: rows[0].data.login });
   res.json({ ok: true });
 });
 

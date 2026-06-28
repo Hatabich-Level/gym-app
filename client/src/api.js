@@ -13,6 +13,7 @@ export async function api(path, method = 'GET', body = null) {
     localStorage.removeItem('gym_token')
     localStorage.removeItem('gym_role')
     localStorage.removeItem('gym_uname')
+    localStorage.removeItem('gym_uid')
     window.location.reload()
     throw new Error('Сесія закінчилась')
   }

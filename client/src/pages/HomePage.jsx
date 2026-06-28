@@ -1,7 +1,13 @@
 import React from 'react'
-import { TODAY, abonStatus, fmtDate, getActiveAbon, visitedTodayAny, getMemberDebt } from '../utils'
+import { TODAY, abonStatus, fmtDate, getActiveAbon, visitedTodayAny, getMemberDebt, daysDiff } from '../utils'
+
+function daysDiffSafe(a, b) {
+  if (!a || !b) return 0
+  return daysDiff(a, b)
+}
 
 export default function HomePage({ members, abons, payments, role, uname, onNavigate }) {
+  const isAdmin = role === 'owner' || role === 'admin'
 
   // Stats
   const active   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && abonStatus(a) === 'active' }).length
@@ -12,16 +18,23 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
   const todayCash = todayAll.filter(p => p.method !== 'card').reduce((s,p) => s + (p.amount||0), 0)
   const todayCard = todayAll.filter(p => p.method === 'card').reduce((s,p) => s + (p.amount||0), 0)
 
-  // Today sessions
-  const todaySessions = payments
-    .filter(p => p.kind === 'session' && p.date === TODAY)
-    .sort((a,b) => (b.time||'').localeCompare(a.time||''))
-
-  // Ending abons alert
-  const endingList = members.filter(m => {
+  // Alerts: expired/ending/frozen — як в оригіналі, з пріоритетом і видимі всім ролям
+  const alerts = []
+  members.forEach(m => {
     const a = getActiveAbon(m.id, abons)
-    return a && ['ending','expired'].includes(abonStatus(a))
+    if (!a) return
+    const st = abonStatus(a)
+    if (st === 'frozen') {
+      const d = daysDiffSafe(a.freezeStart, TODAY)
+      alerts.push({ p: 2, id: m.id, name: m.name, tag: 'tag-ice', tagTxt: '❄️ Заморожено', sub: `Заморожено ${d} дн. тому`, dot: '#88aaff' })
+    } else if (st === 'expired') {
+      alerts.push({ p: 0, id: m.id, name: m.name, tag: 'tag-red', tagTxt: 'Закінчився', sub: a.type === 'month' ? 'Закінчився ' + fmtDate(a.endDate) : 'Разовий використано', dot: '#ff5588' })
+    } else if (st === 'ending') {
+      const d = daysDiffSafe(TODAY, a.endDate)
+      alerts.push({ p: 1, id: m.id, name: m.name, tag: 'tag-ylw', tagTxt: '⚠️ ' + (d === 0 ? 'Сьогодні' : d + ' дн.'), sub: 'Закінчується ' + fmtDate(a.endDate), dot: '#f5a623' })
+    }
   })
+  alerts.sort((a, b) => a.p - b.p)
 
   // Debts summary (абон. + ручні рахуються лише через manualDebts на сторінці Фінанси,
   // тут показуємо тільки борги по абонементах для швидкого огляду)
@@ -41,7 +54,7 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
           <div className="sv" style={{ color: 'var(--grn)' }}>{checked}</div>
           <div className="sl">Відмічено сьогодні</div>
         </div>
-        {role === 'admin' && <>
+        {isAdmin && <>
           <div className="sc clickable" onClick={() => onNavigate('members', 'ending')}>
             <div className="sv" style={{ color: 'var(--ylw)' }}>{ending}</div>
             <div className="sl">Закінчується скоро</div>
@@ -53,7 +66,7 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
         </>}
       </div>
 
-      {role === 'admin' && (todayCash > 0 || todayCard > 0) && (
+      {isAdmin && (todayCash > 0 || todayCard > 0) && (
         <div className="stats3" style={{ marginBottom: 12 }}>
           <div className="sc">
             <div className="sv" style={{ color: 'var(--grn)' }}>{todayCash}</div>
@@ -71,7 +84,7 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
       )}
 
       {/* Debts summary */}
-      {role === 'admin' && debtCount > 0 && (
+      {isAdmin && debtCount > 0 && (
         <div className="card">
           <div className="ct">Борги</div>
           <div className="irow"><span className="ikey">Всього боржників</span><span className="ival" style={{ color: 'var(--red)' }}>{debtCount}</span></div>
@@ -79,60 +92,25 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
         </div>
       )}
 
-      {/* Ending alert */}
-      {role === 'admin' && endingList.length > 0 && (
-        <div className="card" style={{ borderColor: 'rgba(245,166,35,.3)', background: 'rgba(245,166,35,.05)' }}>
-          <div className="ct" style={{ color: 'var(--ylw)' }}>⚠️ Увага — абонементи</div>
-          {endingList.slice(0, 5).map(m => {
-            const a = getActiveAbon(m.id, abons)
-            const st = abonStatus(a)
-            return (
-              <div key={m.id} className="alert-item" onClick={() => onNavigate('member', m.id)}>
-                <div className={`ai-dot ${st === 'expired' ? 'tag-red' : 'tag-ylw'}`} style={{ background: st === 'expired' ? 'var(--red)' : 'var(--ylw)' }} />
-                <div className="ai-info">
-                  <div className="ai-name">{m.name}</div>
-                  <div className="ai-sub">{st === 'expired' ? 'Закінчився' : 'до ' + fmtDate(a?.endDate)}</div>
-                </div>
-                <span className={`ai-tag ${st === 'expired' ? 'tag-red' : 'tag-ylw'}`}>
-                  {st === 'expired' ? 'Прострочено' : 'Скоро'}
-                </span>
+      {/* Alerts — видимі всім ролям, з порожнім станом "Все добре" */}
+      {alerts.length === 0 ? (
+        <div className="card"><div className="empty">✅ Все добре! Немає важливих сповіщень.</div></div>
+      ) : (
+        <div className="card">
+          <div className="ct">Потребує уваги ({alerts.length})</div>
+          {alerts.map(a => (
+            <div key={a.id} className="alert-item" onClick={() => onNavigate('member', a.id)}>
+              <div className="ai-dot" style={{ background: a.dot }} />
+              <div className="ai-info">
+                <div className="ai-name">{a.name}</div>
+                <div className="ai-sub">{a.sub}</div>
               </div>
-            )
-          })}
-          {endingList.length > 5 && (
-            <div style={{ fontSize: 12, color: 'var(--txt2)', padding: '6px 0' }}>
-              + ще {endingList.length - 5} клієнт(ів)
+              <span className={`ai-tag ${a.tag}`}>{a.tagTxt}</span>
             </div>
-          )}
+          ))}
         </div>
       )}
 
-      {/* Today sessions */}
-      {todaySessions.length > 0 && (
-        <div className="card">
-          <div className="ct">📋 Заняття сьогодні</div>
-          {todaySessions.map(p => {
-            const isSplit = p.sessionType === 'split'
-            return (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--brd)' }}>
-                <span>{isSplit ? '👥' : '👤'}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.memberName || '?'}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
-                    {p.time} · {p.trainer}
-                    {isSplit ? ` · спліт ${p.splitCount} ос.` : ''}
-                  </div>
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--grn)', fontWeight: 600 }}>
-                  {p.amount} грн
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

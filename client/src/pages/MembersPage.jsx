@@ -10,7 +10,7 @@ const TABS = [
   { key: 'checked', label: 'Сьогодні' },
 ]
 
-export default function MembersPage({ members, abons, role, onOpen, onAdd, onDeleteMany, onDeleteMember, initialTab }) {
+export default function MembersPage({ members, abons, role, isOwner, onOpen, onAdd, onDeleteMany, onDeleteMember, initialTab }) {
   const [tab, setTab] = useState(initialTab || 'all')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(new Set())
@@ -132,7 +132,7 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
       </div>
 
       {/* Bulk bar */}
-      {role === 'admin' && (
+      {isOwner && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
           padding: '8px 0', borderBottom: '1px solid var(--brd)'
@@ -163,7 +163,7 @@ export default function MembersPage({ members, abons, role, onOpen, onAdd, onDel
             const st = ab ? abonStatus(ab) : null
             return (
               <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
-                {role === 'admin' && (
+                {isOwner && (
                   <input type="checkbox"
                     checked={selected.has(m.id)}
                     onChange={e => toggleSelect(m.id, e)}

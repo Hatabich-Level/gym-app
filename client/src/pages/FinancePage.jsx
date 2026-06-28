@@ -151,6 +151,7 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {
 }
 
 function DebtsTab({ manualDebts, members, abons, payments, role, saveManualDebt, payManualDebt, deleteManualDebt, pushAbons, pushPayment }) {
+  const isAdmin = role === 'owner' || role === 'admin'
   const [modal, setModal] = useState(null) // null | {type:'add'|'pay'|'edit'|'pay-abon', debtId|memberId}
 
   // Борги по абонементах (автоматичні, рахуються від ціни абону і прив'язаних платежів)
@@ -187,7 +188,7 @@ function DebtsTab({ manualDebts, members, abons, payments, role, saveManualDebt,
         <div className="sc"><div className="sv" style={{ color: 'var(--ylw)' }}>{totalAbonDebt + totalManualDebt}</div><div className="sl">Грн загалом</div></div>
       </div>
 
-      {role === 'admin' && (
+      {isAdmin && (
         <button className="btn btn-acc" style={{ marginBottom: 12 }} onClick={() => setModal({ type: 'add' })}>
           + Додати боржника
         </button>
@@ -210,7 +211,7 @@ function DebtsTab({ manualDebts, members, abons, payments, role, saveManualDebt,
                   </div>
                   <div className="pbar" style={{ marginTop: 4 }}><div className="pfill" style={{ width: pct + '%', background: 'var(--ylw)' }} /></div>
                 </div>
-                {role === 'admin' && (
+                {isAdmin && (
                   <button className="btn-sm btn-grn btn" style={{ width: 'auto', flexShrink: 0 }} onClick={() => setModal({ type: 'pay-abon', memberId: d.m.id, abonId: d.ab.id, debt: d.debt })}>💰 Оплата</button>
                 )}
               </div>
@@ -283,6 +284,7 @@ function PayAbonDebtModal({ debt, memberName, onSave, onClose }) {
 }
 
 function DebtCard({ debt, members, role, onPay, onEdit, onDelete }) {
+  const isAdmin = role === 'owner' || role === 'admin'
   const total = debt.totalAmount || 0
   const remaining = debt.remaining || 0
   const paid = total - remaining
@@ -313,7 +315,7 @@ function DebtCard({ debt, members, role, onPay, onEdit, onDelete }) {
           ))}
         </div>
       )}
-      {role === 'admin' && (
+      {isAdmin && (
         <div className="grid2" style={{ marginTop: 10, marginBottom: 0 }}>
           <button className="btn btn-grn btn-sm" onClick={onPay}>💰 Оплата</button>
           <button className="btn btn-gray btn-sm" onClick={onEdit}>✏️ Редагувати</button>

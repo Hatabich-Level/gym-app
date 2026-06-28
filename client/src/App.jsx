@@ -6,7 +6,7 @@ import MemberDetail from './pages/MemberDetail'
 import CheckinPage from './pages/CheckinPage'
 import SessionsPage from './pages/SessionsPage'
 import FinancePage from './pages/FinancePage'
-import { LoadingOverlay, ReminderBanner } from './components/UI'
+import { LoadingOverlay, ReminderBanner, Tabs } from './components/UI'
 import { useStore } from './hooks/useStore'
 import { uid, abonStatus, getActiveAbon, TODAY } from './utils'
 
@@ -17,6 +17,7 @@ export default function App() {
     token: localStorage.getItem('gym_token') || '',
     role: localStorage.getItem('gym_role') || '',
     name: localStorage.getItem('gym_uname') || '',
+    uid: localStorage.getItem('gym_uid') || '',
   }))
   const [page, setPage] = useState('home')
   const [memberDetailId, setMemberDetailId] = useState(null)
@@ -43,14 +44,15 @@ export default function App() {
   }, [auth.role])
 
   function handleLogin(data) {
-    setAuth({ token: data.token || localStorage.getItem('gym_token'), role: data.role, name: data.name || '' })
+    setAuth({ token: data.token || localStorage.getItem('gym_token'), role: data.role, name: data.name || '', uid: data.uid || '' })
   }
 
   function handleLogout() {
     localStorage.removeItem('gym_token')
     localStorage.removeItem('gym_role')
     localStorage.removeItem('gym_uname')
-    setAuth({ token: '', role: '', name: '' })
+    localStorage.removeItem('gym_uid')
+    setAuth({ token: '', role: '', name: '', uid: '' })
   }
 
   function navigate(to, extra) {
@@ -96,6 +98,8 @@ export default function App() {
 
   const role = auth.role
   const uname = auth.name
+  const isOwner = role === 'owner'
+  const isAdmin = role === 'owner' || role === 'admin' // будь-який тип адміністратора
 
   // Nav items
   const navItems = [
@@ -103,7 +107,7 @@ export default function App() {
       key: 'home', label: 'Головна',
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     },
-    ...(role === 'admin' ? [{
+    ...(isAdmin ? [{
       key: 'members', label: 'Клієнти',
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
     }] : []),
@@ -115,10 +119,10 @@ export default function App() {
       key: 'sessions', label: 'Заняття',
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     },
-    {
+    ...(isAdmin ? [{
       key: 'finance', label: 'Фінанси',
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-    },
+    }] : []),
   ]
 
   return (
@@ -126,7 +130,7 @@ export default function App() {
       <LoadingOverlay show={store.loading} />
 
       {/* Reminder banner */}
-      {role === 'admin' && endingCount > 0 && !reminderDismissed && page !== 'members' && (
+      {isAdmin && endingCount > 0 && !reminderDismissed && page !== 'members' && (
         <ReminderBanner
           count={endingCount}
           onClick={() => { navigate('members', 'ending'); setReminderDismissed(true) }}
@@ -139,7 +143,7 @@ export default function App() {
         <div className="hdr">
           <div>
             <h1>💪 Спортзал</h1>
-            <p>Сьогодні: {new Date().toLocaleDateString('uk-UA')} · {role === 'admin' ? '👑 Адмін' : '🏋️ Тренер'} {uname}</p>
+            <p>Сьогодні: {new Date().toLocaleDateString('uk-UA')} · {isOwner ? '👑 Головний адмін' : isAdmin ? '🛠 Адмін' : '🏋️ Тренер'} {uname}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button
@@ -152,7 +156,7 @@ export default function App() {
                 <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
               </svg>
             </button>
-            {role === 'admin' && (
+            {isAdmin && (
               <button className="logout-btn" onClick={() => setPage('settings')}>⚙️</button>
             )}
             <button className="logout-btn" onClick={handleLogout}>Вийти</button>
@@ -205,11 +209,12 @@ export default function App() {
               onNavigate={navigate}
             />
           )}
-          {page === 'members' && role === 'admin' && (
+          {page === 'members' && isAdmin && (
             <MembersPage
               members={store.members}
               abons={store.abons}
               role={role}
+              isOwner={isOwner}
               initialTab={membersInitialTab}
               onOpen={(id) => setMemberDetailId(id)}
               onAdd={() => setMemberDetailId('__new__')}
@@ -238,7 +243,7 @@ export default function App() {
               pushPayment={store.pushPayment}
             />
           )}
-          {page === 'finance' && (
+          {page === 'finance' && isAdmin && (
             <FinancePage
               members={store.members}
               abons={store.abons}
@@ -254,8 +259,13 @@ export default function App() {
               pushPayment={store.pushPayment}
             />
           )}
-          {page === 'settings' && role === 'admin' && (
-            <SettingsPage onReset={store.load} role={role} />
+          {page === 'settings' && isAdmin && (
+            <SettingsPage
+              onReset={store.load} isOwner={isOwner}
+              users={store.users} auditLog={store.auditLog}
+              createUser={store.createUser} deleteUser={store.deleteUser} changeUserPassword={store.changeUserPassword}
+              currentUid={auth.uid}
+            />
           )}
         </div>
       )}
@@ -312,8 +322,9 @@ function NewMemberModal({ onSave, onClose }) {
 }
 
 // ── Settings page ─────────────────────────────────────────────────────────────
-function SettingsPage({ onReset }) {
+function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, currentUid }) {
   const [loading, setLoading] = useState(false)
+  const [tab, setTab] = useState('accounts')
 
   async function resetAbons() {
     if (!confirm('Скинути всі абонементи? Платежі залишаться.')) return
@@ -352,12 +363,182 @@ function SettingsPage({ onReset }) {
   return (
     <div className="pg">
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>⚙️ Налаштування</div>
-      <div className="card">
-        <div className="ct">Небезпечна зона</div>
-        <button className="btn btn-ylw" style={{ marginBottom: 8 }} onClick={resetAbons} disabled={loading}>🔄 Скинути абонементи</button>
-        <button className="btn btn-ylw" style={{ marginBottom: 8 }} onClick={resetPayments} disabled={loading}>💸 Скинути касу</button>
-        <button className="btn btn-red" onClick={resetAll} disabled={loading}>🗑 Скинути все</button>
+
+      {isOwner && (
+        <Tabs
+          tabs={[{ key: 'accounts', label: 'Акаунти' }, { key: 'log', label: 'Журнал дій' }, { key: 'danger', label: 'Небезпечна зона' }]}
+          active={tab} onChange={setTab}
+        />
+      )}
+
+      {isOwner && tab === 'accounts' && (
+        <AccountsTab users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} currentUid={currentUid} />
+      )}
+
+      {isOwner && tab === 'log' && <AuditLogTab auditLog={auditLog} />}
+
+      {isOwner && tab === 'danger' && (
+        <div className="card">
+          <div className="ct">Небезпечна зона</div>
+          <button className="btn btn-ylw" style={{ marginBottom: 8 }} onClick={resetAbons} disabled={loading}>🔄 Скинути абонементи</button>
+          <button className="btn btn-ylw" style={{ marginBottom: 8 }} onClick={resetPayments} disabled={loading}>💸 Скинути касу</button>
+          <button className="btn btn-red" onClick={resetAll} disabled={loading}>🗑 Скинути все</button>
+        </div>
+      )}
+
+      {!isOwner && (
+        <div className="card" style={{ textAlign: 'center', color: 'var(--txt2)' }}>
+          Керування акаунтами та журнал дій доступні лише головному адміну.
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Accounts management (owner only) ───────────────────────────────────────────
+function AccountsTab({ users, createUser, deleteUser, changeUserPassword, currentUid }) {
+  const [showAdd, setShowAdd] = useState(false)
+  const [pwdFor, setPwdFor] = useState(null) // user id, для зміни пароля
+
+  const ROLE_LABEL = { owner: '👑 Головний адмін', admin: '🛠 Адмін', trainer: '🏋️ Тренер' }
+
+  return (
+    <div className="card">
+      <div className="ct">Акаунти ({(users||[]).length})</div>
+      {(users||[]).map(u => (
+        <div key={u.id} className="irow">
+          <div>
+            <div style={{ fontWeight: 500 }}>{u.name || u.login} <span style={{ color: 'var(--txt2)', fontSize: 12 }}>@{u.login}</span></div>
+            <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{ROLE_LABEL[u.role] || u.role}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn-sm" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8, padding: '6px 10px' }} onClick={() => setPwdFor(u.id)}>🔑</button>
+            {u.id !== currentUid && (
+              <button className="btn-sm" style={{ background: 'rgba(255,51,102,.1)', border: '1px solid rgba(255,51,102,.3)', color: 'var(--red)', borderRadius: 8, padding: '6px 10px' }}
+                onClick={() => { if (confirm(`Видалити акаунт «${u.login}»?`)) deleteUser(u.id) }}
+              >🗑</button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      <button className="btn btn-acc" style={{ marginTop: 12 }} onClick={() => setShowAdd(true)}>+ Новий акаунт</button>
+
+      {showAdd && <AddUserModal onSave={async (data) => { await createUser(data); setShowAdd(false) }} onClose={() => setShowAdd(false)} />}
+      {pwdFor && <ChangePasswordModal onSave={async (pwd) => { await changeUserPassword(pwdFor, pwd); setPwdFor(null) }} onClose={() => setPwdFor(null)} />}
+    </div>
+  )
+}
+
+function AddUserModal({ onSave, onClose }) {
+  const [login, setLogin] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [role, setRole] = useState('admin')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (!login.trim() || !password) { setError('Заповніть логін і пароль'); return }
+    if (password.length < 4) { setError('Пароль має бути не менше 4 символів'); return }
+    setSaving(true); setError('')
+    try {
+      await onSave({ login: login.trim(), password, name: name.trim(), role })
+    } catch (e) {
+      setError(e.message)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fullscreen" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto' }}>
+      <div className="mhdr"><button className="back" onClick={onClose}>← Назад</button><span style={{ fontWeight: 600 }}>Новий акаунт</span></div>
+      <div style={{ padding: 14 }}>
+        <div className="frow">
+          <div className="flabel">Роль</div>
+          <div className="method-toggle">
+            <button className={`method-btn ${role === 'admin' ? 'on-card' : ''}`} onClick={() => setRole('admin')}>🛠 Адмін</button>
+            <button className={`method-btn ${role === 'trainer' ? 'on-cash' : ''}`} onClick={() => setRole('trainer')}>🏋️ Тренер</button>
+          </div>
+        </div>
+        <div className="frow"><div className="flabel">Логін</div><input type="text" value={login} onChange={e => setLogin(e.target.value)} placeholder="напр: admin2" autoComplete="off" /></div>
+        <div className="frow"><div className="flabel">Пароль</div><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="мінімум 4 символи" autoComplete="new-password" /></div>
+        <div className="frow"><div className="flabel">Ім'я (відображається)</div><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="напр: Олена" /></div>
+        {error && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+        <button className="btn btn-grn" onClick={save} disabled={saving}>{saving ? 'Збереження...' : '💾 Створити акаунт'}</button>
       </div>
+    </div>
+  )
+}
+
+function ChangePasswordModal({ onSave, onClose }) {
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (password.length < 4) { setError('Пароль має бути не менше 4 символів'); return }
+    setSaving(true); setError('')
+    try { await onSave(password) } catch (e) { setError(e.message) } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fullscreen" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto' }}>
+      <div className="mhdr"><button className="back" onClick={onClose}>← Назад</button><span style={{ fontWeight: 600 }}>Новий пароль</span></div>
+      <div style={{ padding: 14 }}>
+        <div className="frow"><div className="flabel">Пароль</div><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="мінімум 4 символи" autoComplete="new-password" /></div>
+        {error && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+        <button className="btn btn-grn" onClick={save} disabled={saving}>{saving ? 'Збереження...' : '🔑 Змінити пароль'}</button>
+      </div>
+    </div>
+  )
+}
+
+// ── Audit log (owner only) ──────────────────────────────────────────────────────
+function AuditLogTab({ auditLog }) {
+  const ACTION_LABEL = {
+    member_delete: '🗑 Видалено клієнта',
+    members_delete_many: '🗑 Видалено клієнтів',
+    member_edit: '✏️ Змінено дані клієнта',
+    abon_deactivate: '🧾 Стерто абонемент',
+    payment_delete: '💸 Видалено платіж',
+    reset_abons: '🔄 Скинуто абонементи',
+    reset_payments: '💸 Скинуто касу',
+    reset_all: '⚠️ Скинуто всю базу',
+    user_create: '➕ Створено акаунт',
+    user_delete: '🗑 Видалено акаунт',
+    user_password_change: '🔑 Змінено пароль акаунта',
+  }
+
+  function describe(entry) {
+    const d = entry.details || {}
+    switch (entry.action) {
+      case 'member_delete': return d.name || '—'
+      case 'members_delete_many': return (d.names || []).join(', ') || `${d.count} клієнт(ів)`
+      case 'member_edit': return `${d.from?.name || '?'} → ${d.to?.name || '?'}`
+      case 'abon_deactivate': return `${d.memberName || '?'} (${d.abonType === 'month' ? 'місячний' : 'разовий'})`
+      case 'payment_delete': return `${d.memberName || '?'} · ${d.amount} грн · ${d.date || ''}`
+      case 'user_create': case 'user_delete': case 'user_password_change': return `@${d.login || '?'}`
+      default: return ''
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="ct">Журнал дій ({(auditLog||[]).length})</div>
+      {(!auditLog || auditLog.length === 0) ? (
+        <div className="empty">Подій ще немає</div>
+      ) : auditLog.map(entry => (
+        <div key={entry.id} className="irow">
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>{ACTION_LABEL[entry.action] || entry.action}</div>
+            <div style={{ fontSize: 12, color: 'var(--txt2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{describe(entry)}</div>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{entry.by}</div>
+            <div style={{ fontSize: 11, color: 'var(--txt2)' }}>{new Date(entry.at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
