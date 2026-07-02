@@ -492,9 +492,10 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
     return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8)
   }, [members, search, clientId])
 
-  // Ціна місячного абонементу клієнта з бази
+  // Ціна місячного абонементу клієнта з бази, якщо немає — фіксовані 1100 грн
+  const DEFAULT_ABON_PRICE = 1100
   const clientAbon = clientId ? abons.find(a => a.memberId === clientId && a.active && a.type !== 'trainer') : null
-  const abonPrice = clientAbon?.price || 0
+  const abonPrice = clientAbon?.price || DEFAULT_ABON_PRICE
 
   // Формула: ((trainerPrice + abonPrice) * 0.6) - abonPrice = наша частка
   const trainerPrice = parseFloat(price) || 0
@@ -564,9 +565,9 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
 
         {clientId && (
           <div style={{ background: 'rgba(91,141,246,.08)', border: '1px solid rgba(91,141,246,.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 13 }}>
-            {abonPrice > 0
+            {clientAbon?.price
               ? `🎫 Місячний абонемент клієнта: ${abonPrice} грн`
-              : '⚠️ У клієнта немає активного місячного абонементу'}
+              : `🎫 Місячного абонементу немає — використовується фіксована ціна: ${DEFAULT_ABON_PRICE} грн`}
           </div>
         )}
 
@@ -580,20 +581,15 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
           <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="напр: 2200" min={0} />
         </FRow>
 
-        {trainerPrice > 0 && abonPrice > 0 && (
+        {trainerPrice > 0 && (
           <div style={{ background: 'rgba(39,201,122,.08)', border: '1px solid rgba(39,201,122,.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, lineHeight: 1.9 }}>
             💰 Разом з абоном: <b>{total} грн</b> ({trainerPrice} + {abonPrice})<br />
             💵 <span style={{ color: 'var(--grn)' }}>Каса тренера (60%): <b>{trainerEarning} грн</b></span><br />
             🏦 Залу: <b>{hallEarning} грн</b>
           </div>
         )}
-        {trainerPrice > 0 && !abonPrice && (
-          <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--ylw)' }}>
-            ⚠️ Без місячного абонементу розрахунок неможливий
-          </div>
-        )}
 
-        {trainerPrice > 0 && abonPrice > 0 && (
+        {trainerPrice > 0 && (
           <>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, marginBottom: 14 }}>
               <input type="checkbox" checked={toCash} onChange={e => setToCash(e.target.checked)} />
