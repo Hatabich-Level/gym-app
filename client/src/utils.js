@@ -36,6 +36,7 @@ export function daysDiff(a, b) {
 // окремий стан, а не відсутність абонементу).
 export function abonStatus(ab) {
   if (!ab) return null
+  if (ab.type === 'trainer') return (ab.sessionsLeft > 0) ? 'active' : 'expired'
   if (ab.frozen) return 'frozen'
   if (ab.type === 'visit') return ab.active ? 'active' : 'expired'
   if (!ab.endDate) return 'expired'
@@ -53,7 +54,7 @@ export const STATUS_TAG = {
 }
 
 export function getActiveAbon(memberId, abons) {
-  return abons.find(a => a.memberId === memberId && a.active) || null
+  return abons.find(a => a.memberId === memberId && a.active && a.type !== 'trainer') || null
 }
 
 export function getActiveTrainerAbon(memberId, abons) {
@@ -68,13 +69,19 @@ export function visitedTodayAny(memberId, abons) {
   return abons.some(a => a.memberId === memberId && a.visits && a.visits.some(v => v.date === TODAY))
 }
 
-// ── Member debt (борг по абонементу, рахується від платежів з abonId) ───────
+// ── Member debt (борг по абонементу) ─────────────────────────────────────────
 export function getMemberDebt(memberId, abons, payments) {
   const ab = getActiveAbon(memberId, abons)
   if (!ab || !ab.price) return 0
-  const paid = payments.filter(p => p.memberId === memberId && p.abonId === ab.id)
+  // Рахуємо оплачену суму двома способами і беремо максимум:
+  // 1) через payments з abonId (нові записи)
+  // 2) через поле ab.paid (пряме оновлення абонементу)
+  const paidViaPayments = payments
+    .filter(p => p.memberId === memberId && p.abonId === ab.id)
     .reduce((s, p) => s + (p.amount || 0), 0)
-  return Math.max(0, ab.price - paid)
+  const paidViaPaid = ab.paid || 0
+  const totalPaid = Math.max(paidViaPayments, paidViaPaid)
+  return Math.max(0, ab.price - totalPaid)
 }
 
 // ── Finance ───────────────────────────────────────────────────────────────────

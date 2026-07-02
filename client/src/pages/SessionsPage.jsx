@@ -409,7 +409,8 @@ function TodaySessionsBlock({ payments, uname, role }) {
     payments.filter(p => p.kind === 'session' && p.date === TODAY)
       .sort((a, b) => (b.time || '').localeCompare(a.time || '')),
     [payments])
-  const mine = myName ? today.filter(p => p.trainer === myName) : today
+  // Адмін бачить ВСІ заняття, тренер — тільки свої
+  const mine = (role === 'trainer' && myName) ? today.filter(p => p.trainer === myName) : today
 
   const cash = mine.filter(p => p.method !== 'card').reduce((s, p) => s + (p.amount || 0), 0)
   const card = mine.filter(p => p.method === 'card').reduce((s, p) => s + (p.amount || 0), 0)
