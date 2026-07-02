@@ -90,7 +90,10 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {
     const t = p.trainer||'Невідомий'; trainerMap[t] = (trainerMap[t]||0) + (p.hallEarning||0)
   })
   const months = {}
-  abons?.forEach(ab => { if (!ab?.price) return; const m=(ab.startDate||TODAY).slice(0,7); months[m]=(months[m]||0)+ab.price })
+  abons?.forEach(ab => {
+    if (!ab?.price || ab.type === 'trainer') return
+    const m=(ab.startDate||TODAY).slice(0,7); months[m]=(months[m]||0)+ab.price
+  })
   const sortedMonths = Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,6)
   const recent = [...payments].sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||''))).slice(0,30)
 
