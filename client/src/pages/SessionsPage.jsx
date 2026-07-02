@@ -483,6 +483,7 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
   const [sessions, setSessions] = useState(8)
   const [price, setPrice] = useState('')
   const [method, setMethod] = useState('cash')
+  const [hallMethod, setHallMethod] = useState('cash')
   const [toCash, setToCash] = useState(true)
 
   const results = useMemo(() => {
@@ -491,29 +492,42 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
     return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8)
   }, [members, search, clientId])
 
+  // Ціна місячного абонементу клієнта з бази
+  const clientAbon = clientId ? abons.find(a => a.memberId === clientId && a.active && a.type !== 'trainer') : null
+  const abonPrice = clientAbon?.price || 0
+
+  // Формула: ((trainerPrice + abonPrice) * 0.6) - abonPrice = наша частка
+  const trainerPrice = parseFloat(price) || 0
+  const total = trainerPrice + abonPrice
+  const trainerEarning = Math.round(total * 0.6)
+  const hallEarning = Math.round(total * 0.4) - abonPrice
+
   async function save() {
     if (!clientId && !search.trim()) { alert('Виберіть клієнта'); return }
+    if (!trainerPrice) { alert('Вкажіть суму від клієнта'); return }
     const name = clientName || search.trim()
-    const p = parseFloat(price) || 0
     const ab = {
       id: uid(), memberId: clientId, memberName: name,
       type: 'trainer', startDate: TODAY,
       totalSessions: sessions, sessionsLeft: sessions,
-      price: p, paid: p, active: true,
-      trainer: uname || 'Тренер'
+      price: trainerPrice, paid: trainerPrice, active: true,
+      trainer: uname || 'Тренер',
+      abonPrice, trainerEarning, hallEarning
     }
     let payment = null
-    if (p > 0 && toCash) {
+    if (toCash) {
       payment = {
         id: uid(), kind: 'trainer_abon',
         memberId: clientId, memberName: name,
-        date: TODAY, time: nowTime(), amount: p, method,
-        note: `Абонемент тренера ${sessions} занять`
+        date: TODAY, time: nowTime(),
+        amount: hallEarning, trainerEarning, hallEarning,
+        method: hallMethod,
+        note: `Абонемент тренера ${sessions} занять (клієнт: ${trainerPrice} грн)`
       }
     }
     await pushAbons([ab])
     if (payment) await pushPayment(payment)
-    alert(`✅ Абонемент на ${sessions} занять продано`)
+    alert(`✅ Абонемент на ${sessions} занять продано!\nКаса тренера: ${trainerEarning} грн · Залу: ${hallEarning} грн`)
     onClose()
   }
 
@@ -526,7 +540,7 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
           </svg>
           Назад
         </button>
-        <span style={{ fontWeight: 600, fontSize: 16 }}>Продати абонемент</span>
+        <span style={{ fontWeight: 600, fontSize: 16 }}>Продати абонемент на заняття</span>
       </div>
       <div style={{ padding: 14 }}>
         <FRow label="Клієнт">
@@ -535,34 +549,77 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
         </FRow>
         {results.length > 0 && (
           <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
-            {results.map(m => (
-              <div key={m.id} className="mi" onClick={() => { setClientId(m.id); setClientName(m.name); setSearch(m.name) }}>
-                <Ava name={m.name} size={30} />
-                <div className="mi-info"><div className="mi-name" style={{ fontSize: 14 }}>{m.name}</div></div>
-              </div>
-            ))}
+            {results.map(m => {
+              const ab = abons.find(a => a.memberId === m.id && a.active && a.type !== 'trainer')
+              return (
+                <div key={m.id} className="mi" onClick={() => { setClientId(m.id); setClientName(m.name); setSearch(m.name) }}>
+                  <Ava name={m.name} size={30} />
+                  <div className="mi-info"><div className="mi-name" style={{ fontSize: 14 }}>{m.name}</div></div>
+                  {ab?.price ? <span className="ai-tag tag-grn">абон: {ab.price} грн</span> : <span className="ai-tag tag-gray">без абону</span>}
+                </div>
+              )
+            })}
           </div>
         )}
+
+        {clientId && (
+          <div style={{ background: 'rgba(91,141,246,.08)', border: '1px solid rgba(91,141,246,.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 13 }}>
+            {abonPrice > 0
+              ? `🎫 Місячний абонемент клієнта: ${abonPrice} грн`
+              : '⚠️ У клієнта немає активного місячного абонементу'}
+          </div>
+        )}
+
         <FRow label="Кількість занять">
           <select value={sessions} onChange={e => setSessions(+e.target.value)}>
             {[4, 6, 8, 10, 12, 16, 20].map(n => <option key={n} value={n}>{n} занять</option>)}
           </select>
         </FRow>
-        <FRow label="Ціна (грн)">
-          <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" />
+
+        <FRow label="Сума від клієнта за заняття (грн)">
+          <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="напр: 2200" min={0} />
         </FRow>
-        {parseFloat(price) > 0 && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, marginBottom: 14 }}>
-            <input type="checkbox" checked={toCash} onChange={e => setToCash(e.target.checked)} />
-            Записати в касу
-          </label>
-        )}
-        {parseFloat(price) > 0 && toCash && (
-          <div className="method-toggle" style={{ marginBottom: 14 }}>
-            <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵 Готівка</button>
-            <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳 Картка</button>
+
+        {trainerPrice > 0 && abonPrice > 0 && (
+          <div style={{ background: 'rgba(39,201,122,.08)', border: '1px solid rgba(39,201,122,.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, lineHeight: 1.9 }}>
+            💰 Разом з абоном: <b>{total} грн</b> ({trainerPrice} + {abonPrice})<br />
+            💵 <span style={{ color: 'var(--grn)' }}>Каса тренера (60%): <b>{trainerEarning} грн</b></span><br />
+            🏦 Залу: <b>{hallEarning} грн</b>
           </div>
         )}
+        {trainerPrice > 0 && !abonPrice && (
+          <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--ylw)' }}>
+            ⚠️ Без місячного абонементу розрахунок неможливий
+          </div>
+        )}
+
+        {trainerPrice > 0 && abonPrice > 0 && (
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, marginBottom: 14 }}>
+              <input type="checkbox" checked={toCash} onChange={e => setToCash(e.target.checked)} />
+              Записати в касу ({hallEarning} грн)
+            </label>
+            {toCash && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 6 }}>Клієнт→тренер</div>
+                  <div className="method-toggle" style={{ marginBottom: 0 }}>
+                    <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵</button>
+                    <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳</button>
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 6 }}>Тренер→зал</div>
+                  <div className="method-toggle" style={{ marginBottom: 0 }}>
+                    <button className={`method-btn ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}>💵</button>
+                    <button className={`method-btn ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}>💳</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         <button className="btn btn-grn" onClick={save}>💾 Зберегти абонемент</button>
       </div>
     </div>

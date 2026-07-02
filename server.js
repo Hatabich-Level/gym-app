@@ -278,10 +278,19 @@ app.post('/api/abons/bulk', auth, async (req, res) => {
     const existing = new Map(rows.map(r => [r.id, r.data]));
     for (const it of items) {
       const prev = existing.get(String(it.id));
-      if (!prev) return res.status(403).json({ error: 'Тренер не може створювати абонементи' });
-      // Дозволено змінювати лише visits і active (закриття разового після відмітки).
-      // Все інше (price, paid, endDate, frozen, freezeStart, extraDays, type...) має лишитись незмінним.
-      const allowedDiffKeys = new Set(['visits', 'active']);
+      if (!prev) {
+        // Тренер може створювати тільки абонементи type==='trainer' (свої пакети занять)
+        if (it.type !== 'trainer') {
+          return res.status(403).json({ error: 'Тренер не може створювати абонементи залу' });
+        }
+        continue; // дозволяємо створення тренерського абонементу
+      }
+      // Для існуючих абонементів:
+      // - type==='trainer': дозволено змінювати visits, sessionsLeft, active
+      // - інші: дозволено змінювати тільки visits і active (відмітка відвідування)
+      const allowedDiffKeys = it.type === 'trainer'
+        ? new Set(['visits', 'sessionsLeft', 'active'])
+        : new Set(['visits', 'active']);
       for (const key of Object.keys(it)) {
         const same = JSON.stringify(it[key]) === JSON.stringify(prev[key]);
         if (!same && !allowedDiffKeys.has(key)) {
