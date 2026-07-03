@@ -427,21 +427,37 @@ function TodaySessionsBlock({ payments, uname, role }) {
   // Адмін бачить ВСІ заняття, тренер — тільки свої
   const mine = (role === 'trainer' && myName) ? today.filter(p => p.trainer === myName) : today
 
+  const isTrainerView = role === 'trainer'
+
+  // Тренер бачить скільки отримав від клієнтів (готівкою/карткою) і свою чисту касу
   const cash = mine.filter(p => p.method !== 'card').reduce((s, p) => s + (p.amount || 0), 0)
   const card = mine.filter(p => p.method === 'card').reduce((s, p) => s + (p.amount || 0), 0)
   const trainerCash = mine.reduce((s, p) => s + (p.trainerEarning || 0), 0)
 
+  // Адмін бачить скільки має прийти в касу залу (за hallMethod)
+  const hallCash = today.filter(p => p.hallMethod === 'cash').reduce((s, p) => s + (p.hallEarning || 0), 0)
+  const hallCard = today.filter(p => p.hallMethod === 'card').reduce((s, p) => s + (p.hallEarning || 0), 0)
+  const hallPending = today.filter(p => p.hallMethod == null).reduce((s, p) => s + (p.hallEarning || 0), 0)
+
   return (
     <>
-      <div className="stats3">
-        <div className="sc"><div className="sv" style={{ color: 'var(--grn)' }}>{cash}</div><div className="sl">💵 Готівка</div></div>
-        <div className="sc"><div className="sv" style={{ color: 'var(--acc)' }}>{card}</div><div className="sl">💳 Картка</div></div>
-        {trainerCash ? (
+      {isTrainerView ? (
+        <div className="stats3">
+          <div className="sc"><div className="sv" style={{ color: 'var(--grn)' }}>{cash}</div><div className="sl">💵 Готівка</div></div>
+          <div className="sc"><div className="sv" style={{ color: 'var(--acc)' }}>{card}</div><div className="sl">💳 Картка</div></div>
           <div className="sc"><div className="sv" style={{ color: 'var(--grn)', fontWeight: 700 }}>{trainerCash}</div><div className="sl">💵 Каса тренера</div></div>
-        ) : (
-          <div className="sc"><div className="sv">{cash + card}</div><div className="sl">Всього сьогодні</div></div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="stats3">
+          <div className="sc"><div className="sv" style={{ color: 'var(--grn)' }}>{hallCash}</div><div className="sl">💵 Готівка (зал)</div></div>
+          <div className="sc"><div className="sv" style={{ color: 'var(--acc)' }}>{hallCard}</div><div className="sl">💳 Картка (зал)</div></div>
+          {hallPending > 0 ? (
+            <div className="sc"><div className="sv" style={{ color: 'var(--ylw)', fontWeight: 700 }}>{hallPending}</div><div className="sl">⚠️ Непідтверджено</div></div>
+          ) : (
+            <div className="sc"><div className="sv">{hallCash + hallCard}</div><div className="sl">Всього зала сьогодні</div></div>
+          )}
+        </div>
+      )}
 
       {today.length === 0 ? (
         <div className="card"><div className="empty">Сьогодні занять ще не було</div></div>
@@ -466,14 +482,21 @@ function TodaySessionsBlock({ payments, uname, role }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                   {p.trainerEarning ? (
-                    <>
-                      <span style={{ fontSize: 11, color: 'var(--txt2)' }}>клієнт:</span>
-                      <MethodPill method={p.method} />
-                      <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.trainerEarning}</span>
-                      <span style={{ fontSize: 11, color: 'var(--txt2)', marginLeft: 4 }}>зал:</span>
-                      <MethodPill method={p.hallMethod} />
-                      <span style={{ color: 'var(--acc)', fontWeight: 600 }}>+{p.hallEarning}</span>
-                    </>
+                    role === 'trainer' ? (
+                      <>
+                        <MethodPill method={p.method} />
+                        <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.trainerEarning}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 11, color: 'var(--txt2)' }}>клієнт:</span>
+                        <MethodPill method={p.method} />
+                        <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.trainerEarning}</span>
+                        <span style={{ fontSize: 11, color: 'var(--txt2)', marginLeft: 4 }}>зал:</span>
+                        <MethodPill method={p.hallMethod} />
+                        <span style={{ color: 'var(--acc)', fontWeight: 600 }}>+{p.hallEarning}</span>
+                      </>
+                    )
                   ) : (
                     <>
                       <MethodPill method={p.method} />
