@@ -36,6 +36,7 @@ function sumBy(arr, method) {
 }
 
 function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pushPayment }) {
+  const [editPayment, setEditPayment] = useState(null)
   const thisMonth = TODAY.slice(0,7)
   const monthPays = payments.filter(p => p.date?.slice(0,7) === thisMonth)
 
@@ -179,6 +180,7 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
               <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
                 <MethodPill method={hallMethodDisplay} />
                 <span style={{color:'var(--grn)',fontWeight:600}}>+{hallAmt}</span>
+                <button className="alert-dismiss" style={{color:'var(--txt2)'}} onClick={() => setEditPayment(p)}>✏️</button>
                 <button className="alert-dismiss" onClick={() => { if(confirm('Видалити платіж?')) deletePayment(p.id) }}>✕</button>
               </div>
             </div>
@@ -186,7 +188,114 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
         })}
       </div>
     )}
+    {editPayment && (
+      <EditPaymentModal
+        payment={editPayment}
+        pushPayment={pushPayment}
+        onClose={() => setEditPayment(null)}
+      />
+    )}
   </>
+}
+
+// ── Edit payment modal ────────────────────────────────────────────────────────
+function EditPaymentModal({ payment, pushPayment, onClose }) {
+  const isSession = payment.kind === 'session'
+  const [trainerEarning, setTrainerEarning] = useState(payment.trainerEarning ?? 0)
+  const [hallEarning, setHallEarning] = useState(payment.hallEarning ?? 0)
+  const [amount, setAmount] = useState(payment.amount ?? 0)
+  const [method, setMethod] = useState(payment.method ?? 'cash')
+  const [hallMethod, setHallMethod] = useState(payment.hallMethod ?? 'cash')
+  const [note, setNote] = useState(payment.note || '')
+  const [date, setDate] = useState(payment.date || TODAY)
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    try {
+      const updated = { ...payment, note, date }
+      if (isSession) {
+        updated.trainerEarning = parseFloat(trainerEarning) || 0
+        updated.hallEarning = parseFloat(hallEarning) || 0
+        updated.method = method
+        updated.hallMethod = hallMethod
+      } else {
+        updated.amount = parseFloat(amount) || 0
+        updated.method = method
+      }
+      await pushPayment(updated)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 300, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div className="card" style={{ margin: 0, width: '100%', borderRadius: '16px 16px 0 0', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="ct">✏️ Редагувати платіж</div>
+        <div style={{ fontSize: 13, color: 'var(--txt2)', marginBottom: 14 }}>
+          {payment.memberName || '?'}{payment.note ? ' · ' + payment.note : ''}
+        </div>
+
+        <div className="frow">
+          <div className="flabel">Дата</div>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+
+        {isSession ? (
+          <>
+            <div className="frow">
+              <div className="flabel">Каса тренера (грн)</div>
+              <input type="number" value={trainerEarning} onChange={e => setTrainerEarning(e.target.value)} min={0} />
+            </div>
+            <div className="frow">
+              <div className="flabel">Каса залу (грн)</div>
+              <input type="number" value={hallEarning} onChange={e => setHallEarning(e.target.value)} min={0} />
+            </div>
+            <div className="frow">
+              <div className="flabel">Клієнт→тренер</div>
+              <div className="method-toggle" style={{ marginBottom: 0 }}>
+                <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵 Готівка</button>
+                <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳 Картка</button>
+              </div>
+            </div>
+            <div className="frow">
+              <div className="flabel">Тренер→зал</div>
+              <div className="method-toggle" style={{ marginBottom: 0 }}>
+                <button className={`method-btn ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}>💵 Готівка</button>
+                <button className={`method-btn ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}>💳 Картка</button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="frow">
+              <div className="flabel">Сума (грн)</div>
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min={0} />
+            </div>
+            <div className="frow">
+              <div className="flabel">Оплата</div>
+              <div className="method-toggle" style={{ marginBottom: 0 }}>
+                <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵 Готівка</button>
+                <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳 Картка</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="frow">
+          <div className="flabel">Примітка</div>
+          <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="необов'язково" />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="btn" style={{ flex: 1, background: 'var(--s1)', border: '1px solid var(--brd)' }} onClick={onClose}>Скасувати</button>
+          <button className="btn btn-grn" style={{ flex: 1 }} disabled={saving} onClick={save}>{saving ? 'Збереження...' : '💾 Зберегти'}</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function DebtsTab({ manualDebts, members, abons, payments, role, saveManualDebt, payManualDebt, deleteManualDebt, pushAbons, pushPayment }) {
