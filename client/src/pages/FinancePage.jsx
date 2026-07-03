@@ -16,7 +16,7 @@ export default function FinancePage({ members, abons, payments, manualDebts, rol
     <div className="pg">
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>💰 Фінанси</div>
       <Tabs tabs={FTABS} active={tab} onChange={setTab} />
-      {tab === 'payments' && <PaymentsTab payments={payments} members={members} abons={abons} role={role} uname={uname} deletePayment={deletePayment} />}
+      {tab === 'payments' && <PaymentsTab payments={payments} members={members} abons={abons} role={role} uname={uname} deletePayment={deletePayment} pushPayment={pushPayment} />}
       {tab === 'debts' && <DebtsTab manualDebts={manualDebts} members={members} abons={abons} payments={payments} role={role} saveManualDebt={saveManualDebt} payManualDebt={payManualDebt} deleteManualDebt={deleteManualDebt} pushAbons={pushAbons} pushPayment={pushPayment} />}
       {tab === 'export' && <ExportTab payments={payments} abons={abons} />}
     </div>
@@ -26,7 +26,8 @@ export default function FinancePage({ members, abons, payments, manualDebts, rol
 function sumBy(arr, method) {
   return arr.reduce((s, p) => {
     // для занять каса залу прив'язана до hallMethod (тренер→зал), а не method (клієнт→тренер)
-    const payMethod = p.kind === 'session' ? (p.hallMethod || p.method) : p.method
+    const payMethod = p.kind === 'session' ? p.hallMethod : p.method
+    if (payMethod == null) return s // непідтверджено адміном — не рахуємо ні готівкою, ні карткою
     const matches = method === 'cash' ? payMethod !== 'card' : payMethod === 'card'
     if (!matches) return s
     const amt = p.kind === 'session' ? (p.hallEarning || 0) : (p.amount || 0)
@@ -34,7 +35,7 @@ function sumBy(arr, method) {
   }, 0)
 }
 
-function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {
+function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pushPayment }) {
   const thisMonth = TODAY.slice(0,7)
   const monthPays = payments.filter(p => p.date?.slice(0,7) === thisMonth)
 
@@ -97,7 +98,42 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment }) {
   const sortedMonths = Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,6)
   const recent = [...payments].sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||''))).slice(0,30)
 
+  // Заняття/абонементи тренера, де не вказано, як гроші пішли від тренера до зали
+  const unconfirmed = [...payments]
+    .filter(p => (p.kind === 'session' && p.hallMethod == null) || (p.kind === 'trainer_abon' && p.method == null))
+    .sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||'')))
+
+  async function confirmHall(p, m) {
+    if (p.kind === 'session') await pushPayment({ ...p, hallMethod: m })
+    else await pushPayment({ ...p, method: m })
+  }
+
   return <>
+    {unconfirmed.length > 0 && (
+      <div className="card" style={{ border: '1px solid rgba(245,166,35,.4)', background: 'rgba(245,166,35,.06)' }}>
+        <div className="ct" style={{ color: 'var(--ylw)' }}>⚠️ Не підтверджено оплату зала ({unconfirmed.length})</div>
+        <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 10 }}>
+          Тренер записав, але не вказав, як гроші пішли від тренера до зали. Познач сам:
+        </div>
+        {unconfirmed.map(p => {
+          const amt = p.kind === 'session' ? (p.hallEarning || 0) : (p.amount || 0)
+          return (
+            <div key={p.id} className="payment-item">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {p.kind === 'trainer_abon' ? '🎫 ' : (p.sessionType === 'split' ? '👥 ' : '👤 ')}{p.memberName || '?'}
+                </div>
+                <div style={{ color: 'var(--txt2)' }}>{fmtDate(p.date)}{p.time ? ' ' + p.time : ''}{p.trainer ? ' · ' + p.trainer : ''} · {amt} грн</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <button className="chip" onClick={() => confirmHall(p, 'cash')}>💵</button>
+                <button className="chip" onClick={() => confirmHall(p, 'card')}>💳</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )}
     <div className="stats3">
       <div className="sc"><div className="sv" style={{color:'var(--grn)'}}>{mCash}</div><div className="sl">💵 Готівка (міс)</div></div>
       <div className="sc"><div className="sv" style={{color:'var(--acc)'}}>{mCard}</div><div className="sl">💳 Картка (міс)</div></div>

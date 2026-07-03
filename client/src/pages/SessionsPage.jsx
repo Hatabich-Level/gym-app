@@ -122,7 +122,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
       trainer: uname || (role === 'trainer' ? 'Тренер' : 'Адмін'),
       date: sessionDate, time: nowTime(),
       amount: totalAmount, trainerPrice, trainerEarning, hallEarning,
-      method, hallMethod, note, trainerAbonId
+      method, hallMethod: role === 'trainer' ? null : hallMethod, note, trainerAbonId
     }
 
     if (abonsChanged.length) await pushAbons(abonsChanged)
@@ -172,7 +172,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
       amount: hallTotal, trainerEarning: trainerTotal,
       splitCount: count, payingCount, perPerson,
       hallPerPerson: SPLIT_HALL_FEE,
-      note, method: splitMethod, hallMethod: splitHallMethod
+      note, method: splitMethod, hallMethod: role === 'trainer' ? null : splitHallMethod
     }
 
     if (abonsChanged.length) await pushAbons(abonsChanged)
@@ -326,11 +326,18 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
                 <button className={`chip ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵</button>
                 <button className={`chip ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳</button>
               </div>
-              <div className="chip-group">
-                <span className="chip-label">Тренер→зал</span>
-                <button className={`chip ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}>💵</button>
-                <button className={`chip ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}>💳</button>
-              </div>
+              {role !== 'trainer' ? (
+                <div className="chip-group">
+                  <span className="chip-label">Тренер→зал</span>
+                  <button className={`chip ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}>💵</button>
+                  <button className={`chip ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}>💳</button>
+                </div>
+              ) : (
+                <div className="chip-group">
+                  <span className="chip-label">Тренер→зал</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)' }}>🕓 підтвердить адмін</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -345,11 +352,18 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
                 <button className={`chip ${splitMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitMethod('cash')}>💵</button>
                 <button className={`chip ${splitMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitMethod('card')}>💳</button>
               </div>
-              <div className="chip-group">
-                <span className="chip-label">Тренер→зал</span>
-                <button className={`chip ${splitHallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitHallMethod('cash')}>💵</button>
-                <button className={`chip ${splitHallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitHallMethod('card')}>💳</button>
-              </div>
+              {role !== 'trainer' ? (
+                <div className="chip-group">
+                  <span className="chip-label">Тренер→зал</span>
+                  <button className={`chip ${splitHallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitHallMethod('cash')}>💵</button>
+                  <button className={`chip ${splitHallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitHallMethod('card')}>💳</button>
+                </div>
+              ) : (
+                <div className="chip-group">
+                  <span className="chip-label">Тренер→зал</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)' }}>🕓 підтвердить адмін</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -393,6 +407,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
           members={members}
           abons={abons}
           uname={uname}
+          role={role}
           pushAbons={pushAbons}
           pushPayment={pushPayment}
           onClose={() => setShowAbonModal(false)}
@@ -456,7 +471,7 @@ function TodaySessionsBlock({ payments, uname, role }) {
                       <MethodPill method={p.method} />
                       <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.trainerEarning}</span>
                       <span style={{ fontSize: 11, color: 'var(--txt2)', marginLeft: 4 }}>зал:</span>
-                      <MethodPill method={p.hallMethod || p.method} />
+                      <MethodPill method={p.hallMethod} />
                       <span style={{ color: 'var(--acc)', fontWeight: 600 }}>+{p.hallEarning}</span>
                     </>
                   ) : (
@@ -476,7 +491,7 @@ function TodaySessionsBlock({ payments, uname, role }) {
 }
 
 // ── Trainer abon modal ────────────────────────────────────────────────────────
-function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClose }) {
+function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment, onClose }) {
   const [search, setSearch] = useState('')
   const [clientId, setClientId] = useState(null)
   const [clientName, setClientName] = useState('')
@@ -492,10 +507,9 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
     return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8)
   }, [members, search, clientId])
 
-  // Ціна місячного абонементу клієнта з бази, якщо немає — фіксовані 1100 грн
+  // Фіксована ціна місячного абонементу — з бази більше не береться
   const DEFAULT_ABON_PRICE = 1100
-  const clientAbon = clientId ? abons.find(a => a.memberId === clientId && a.active && a.type !== 'trainer') : null
-  const abonPrice = clientAbon?.price || DEFAULT_ABON_PRICE
+  const abonPrice = DEFAULT_ABON_PRICE
 
   // Формула: ((trainerPrice + abonPrice) * 0.6) - abonPrice = наша частка
   const trainerPrice = parseFloat(price) || 0
@@ -522,7 +536,7 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
         memberId: clientId, memberName: name,
         date: TODAY, time: nowTime(),
         amount: hallEarning, trainerEarning, hallEarning,
-        method: hallMethod,
+        method: role === 'trainer' ? null : hallMethod,
         note: `Абонемент тренера ${sessions} занять (клієнт: ${trainerPrice} грн)`
       }
     }
@@ -565,9 +579,7 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
 
         {clientId && (
           <div style={{ background: 'rgba(91,141,246,.08)', border: '1px solid rgba(91,141,246,.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 13 }}>
-            {clientAbon?.price
-              ? `🎫 Місячний абонемент клієнта: ${abonPrice} грн`
-              : `🎫 Місячного абонементу немає — використовується фіксована ціна: ${DEFAULT_ABON_PRICE} грн`}
+            🎫 Використовується фіксована ціна абонементу: {abonPrice} грн
           </div>
         )}
 
@@ -589,7 +601,7 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
           </div>
         )}
 
-        {trainerPrice > 0 && (
+        {trainerPrice > 0 && role !== 'trainer' && (
           <>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, marginBottom: 14 }}>
               <input type="checkbox" checked={toCash} onChange={e => setToCash(e.target.checked)} />
@@ -614,6 +626,11 @@ function TrainerAbonModal({ members, abons, uname, pushAbons, pushPayment, onClo
               </div>
             )}
           </>
+        )}
+        {trainerPrice > 0 && role === 'trainer' && (
+          <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--ylw)' }}>
+            ℹ️ Оплату залу підтвердить адміністратор
+          </div>
         )}
 
         <button className="btn btn-grn" onClick={save}>💾 Зберегти абонемент</button>
