@@ -91,9 +91,10 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
     const t = p.trainer||'Невідомий'; trainerMap[t] = (trainerMap[t]||0) + (p.hallEarning||0)
   })
   const months = {}
-  abons?.forEach(ab => {
-    if (!ab?.price || ab.type === 'trainer') return
-    const m=(ab.startDate||TODAY).slice(0,7); months[m]=(months[m]||0)+ab.price
+  payments?.forEach(p => {
+    if (p.kind !== 'abon' || !p.amount) return
+    const m = (p.date || TODAY).slice(0,7)
+    months[m] = (months[m] || 0) + p.amount
   })
   const sortedMonths = Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,6)
   const recent = [...payments].sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||''))).slice(0,30)
@@ -155,7 +156,7 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
     </div>
     {sortedMonths.length > 0 && (
       <div className="card">
-        <div className="ct">Нарахування по місяцях (абонементи)</div>
+        <div className="ct">Отримано за абонементи по місяцях</div>
         {sortedMonths.map(([m,total]) => {
           const [y,mo] = m.split('-')
           const mn = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'][parseInt(mo)-1]
