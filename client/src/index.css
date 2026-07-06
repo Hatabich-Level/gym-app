@@ -14,10 +14,10 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes popIn{from{opacity:0;transform:scale(.96) translateY(4px)}to{opacity:1;transform:scale(1) translateY(0)}}
 
-.pg{animation:pageIn .28s cubic-bezier(.22,1,.36,1) both}
-.fullscreen{animation:slideInRight .26s cubic-bezier(.22,1,.36,1) both}
-.modal{animation:slideInRight .26s cubic-bezier(.22,1,.36,1) both}
-.card{animation:popIn .22s cubic-bezier(.22,1,.36,1) both}
+.pg{animation:pageIn .28s cubic-bezier(.22,1,.36,1)}
+.fullscreen{animation:slideInRight .26s cubic-bezier(.22,1,.36,1)}
+.modal{animation:slideInRight .26s cubic-bezier(.22,1,.36,1)}
+.card{animation:popIn .22s cubic-bezier(.22,1,.36,1)}
 /* картки в довгих списках не повинні всі підряд анімуватись помітно з затримкою — короткий, тихий вхід достатній */
 
 @media (prefers-reduced-motion: reduce){

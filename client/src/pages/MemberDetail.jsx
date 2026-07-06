@@ -102,36 +102,6 @@ export default function MemberDetail({
               <div className="irow"><span className="ikey">Ціна</span><span className="ival">{trainerAbon.price} грн</span></div>
             )}
             <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(trainerAbon.startDate)}</span></div>
-            {/* 30-денне згорання */}
-            {(() => {
-              const lastVisit = (trainerAbon.visits||[]).slice().sort((a,b) => b.date.localeCompare(a.date))[0]
-              const lastDate = lastVisit ? lastVisit.date : trainerAbon.startDate
-              const daysSince = lastDate ? daysDiff(lastDate, TODAY) : 0
-              if (daysSince >= 30) return (
-                <div style={{ background: 'rgba(255,51,102,.1)', border: '1px solid rgba(255,51,102,.3)', borderRadius: 8, padding: '8px 12px', marginTop: 8, fontSize: 13, color: '#ff5588' }}>
-                  ⚠️ Клієнт не займався {daysSince} дн. — абонемент згорає за правилом 30 днів
-                </div>
-              )
-              if (daysSince >= 20) return (
-                <div style={{ background: 'rgba(245,166,35,.1)', border: '1px solid rgba(245,166,35,.3)', borderRadius: 8, padding: '8px 12px', marginTop: 8, fontSize: 13, color: 'var(--ylw)' }}>
-                  ⚠️ Клієнт не займався {daysSince} дн. — залишилось {30 - daysSince} дн. до згорання
-                </div>
-              )
-              return null
-            })()}
-            {/* Відновлення заняття (поважна причина) */}
-            <button
-              className="btn btn-ice btn-sm"
-              style={{ marginTop: 10 }}
-              onClick={async () => {
-                if (!window.confirm('Відновити 1 заняття з поважної причини?')) return
-                const updated = { ...trainerAbon, sessionsLeft: trainerAbon.sessionsLeft + 1 }
-                await pushAbons([updated])
-                alert('✅ Заняття відновлено!')
-              }}
-            >
-              ↩️ Відновити заняття (поважна причина)
-            </button>
           </div>
         )}
 
@@ -435,7 +405,8 @@ function AddAbonModal({ memberId, memberName, activeAbon, onSave, onClose }) {
       type, startDate: startDate || TODAY,
       endDate, price: p, paid: pa,
       active: true, frozen: false, freezeStart: null,
-      extraDays: 0, freezeLog: [], visits: [],
+      extraDays: 0, freezeLog: [],
+      visits: type === 'visit' ? [{ date: startDate || TODAY, time: nowTime() }] : [],
       ...(activeAbon ? { prevAbonId: activeAbon.id } : {})
     }
     let payment = null
