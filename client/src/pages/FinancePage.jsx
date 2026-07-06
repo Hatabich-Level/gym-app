@@ -83,12 +83,11 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
   // Admin view
   const mCash = sumBy(monthPays, 'cash'), mCard = sumBy(monthPays, 'card')
   const aCash = sumBy(payments, 'cash'), aCard = sumBy(payments, 'card')
-  const mHall = monthPays.filter(p=>p.kind==='session').reduce((s,p)=>s+(p.hallEarning||p.amount||0),0) +
-                monthPays.filter(p=>p.kind!=='session').reduce((s,p)=>s+p.amount,0)
-  const aHall = payments.filter(p=>p.kind==='session').reduce((s,p)=>s+(p.hallEarning||p.amount||0),0) +
-                payments.filter(p=>p.kind!=='session').reduce((s,p)=>s+p.amount,0)
+  // Каса залу = тільки ПІДТВЕРДЖЕНІ гроші (ті самі, що в mCash+mCard/aCash+aCard)
+  const mHall = mCash + mCard
+  const aHall = aCash + aCard
   const trainerMap = {}
-  monthPays.filter(p=>p.kind==='session').forEach(p => {
+  monthPays.filter(p => p.kind === 'session' && p.hallMethod != null).forEach(p => {
     const t = p.trainer||'Невідомий'; trainerMap[t] = (trainerMap[t]||0) + (p.hallEarning||0)
   })
   const months = {}
