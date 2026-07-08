@@ -102,6 +102,18 @@ export default function MemberDetail({
               <div className="irow"><span className="ikey">Ціна</span><span className="ival">{trainerAbon.price} грн</span></div>
             )}
             <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(trainerAbon.startDate)}</span></div>
+            {trainerAbon.bonusLog && trainerAbon.bonusLog.length > 0 && (
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--brd)' }}>
+                {trainerAbon.bonusLog.map((b, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 4 }}>
+                    ➕ {b.date}: +{b.count} зан. — {b.reason}
+                  </div>
+                ))}
+              </div>
+            )}
+            <button className="btn-sm btn-acc" style={{ marginTop: 10, width: '100%' }} onClick={() => setModal('addTrainerSessions')}>
+              + Додати заняття (поважна причина)
+            </button>
           </div>
         )}
 
@@ -256,6 +268,16 @@ export default function MemberDetail({
         <FreezeModal
           abon={activeAbon}
           onSave={doFreeze}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'addTrainerSessions' && trainerAbon && (
+        <AddTrainerSessionsModal
+          abon={trainerAbon}
+          onSave={async (updatedAbon) => {
+            await pushAbons([updatedAbon])
+            setModal(null)
+          }}
           onClose={() => setModal(null)}
         />
       )}
@@ -567,6 +589,43 @@ function FreezeModal({ abon, onSave, onClose }) {
           <input type="date" value={startDate} max={TODAY} min={min} onChange={e => setStartDate(e.target.value)} />
         </FRow>
         <button className="btn btn-ice" onClick={save}>❄️ Заморозити</button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Add trainer sessions (поважна причина) ────────────────────────────────────
+function AddTrainerSessionsModal({ abon, onSave, onClose }) {
+  const [count, setCount] = useState(1)
+  const [reason, setReason] = useState('')
+
+  function save() {
+    const n = parseInt(count) || 0
+    if (n <= 0) { alert('Вкажіть кількість занять (більше 0)'); return }
+    if (!reason.trim()) { alert('Вкажіть причину'); return }
+    const bonusLog = [...(abon.bonusLog || []), { date: TODAY, count: n, reason: reason.trim() }]
+    const updated = {
+      ...abon,
+      sessionsLeft: abon.sessionsLeft + n,
+      totalSessions: abon.totalSessions + n,
+      bonusLog
+    }
+    onSave(updated)
+  }
+
+  return (
+    <Modal title="➕ Додати заняття тренера" onClose={onClose}>
+      <div className="card">
+        <div style={{ fontSize: 14, color: 'var(--txt2)', marginBottom: 14, lineHeight: 1.6 }}>
+          Зараз залишилось <b>{abon.sessionsLeft}</b> з <b>{abon.totalSessions}</b> занять. Додай додаткові заняття клієнту за поважної причини (компенсація, вибачення тощо) — без оплати.
+        </div>
+        <FRow label="Кількість занять">
+          <input type="number" value={count} onChange={e => setCount(e.target.value)} min={1} />
+        </FRow>
+        <FRow label="Причина">
+          <input type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder="напр: тренер запізнився / хвороба тренера" />
+        </FRow>
+        <button className="btn btn-acc" onClick={save}>💾 Додати заняття</button>
       </div>
     </Modal>
   )
