@@ -8,6 +8,7 @@ const TABS = [
   { key: 'frozen', label: 'Заморожені' },
   { key: 'ending', label: 'Закінчується' },
   { key: 'checked', label: 'Сьогодні' },
+  { key: 'trainers', label: '👔 Тренери' },
 ]
 
 export default function MembersPage({ members, abons, role, isOwner, onOpen, onAdd, onDeleteMany, onDeleteMember, initialTab }) {
@@ -26,6 +27,7 @@ export default function MembersPage({ members, abons, role, isOwner, onOpen, onA
     if (tab === 'frozen')  list = list.filter(m => { const a = getActiveAbon(m.id, abons); return a && a.frozen })
     if (tab === 'ending')  list = list.filter(m => { const a = getActiveAbon(m.id, abons); return a && ['ending','expired'].includes(abonStatus(a)) })
     if (tab === 'checked') list = list.filter(m => visitedTodayAny(m.id, abons))
+    if (tab === 'trainers') list = list.filter(m => m.isTrainer)
 
     if (sortVal === 'name') {
       list.sort((a, b) => a.name.localeCompare(b.name, 'uk'))
@@ -173,7 +175,10 @@ export default function MembersPage({ members, abons, role, isOwner, onOpen, onA
                 )}
                 <Ava name={m.name} />
                 <div className="mi-info">
-                  <div className="mi-name">{m.name}</div>
+                  <div className="mi-name">
+                    {m.name}
+                    {m.isTrainer && <span className="ai-tag tag-blue" style={{ marginLeft: 6, fontSize: 11 }}>👔 Тренер</span>}
+                  </div>
                   <div className="mi-sub">{m.phone || (st ? STATUS_LABEL[st] : 'Без абонементу')}</div>
                 </div>
                 <span className={`ai-tag ${st ? STATUS_TAG[st] : 'tag-gray'}`}>

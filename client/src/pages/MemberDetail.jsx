@@ -394,11 +394,16 @@ function AbonRow({ abon }) {
 function EditMemberModal({ member, onSave, onClose }) {
   const [name, setName] = useState(member.name || '')
   const [phone, setPhone] = useState(member.phone || '')
+  const [isTrainer, setIsTrainer] = useState(!!member.isTrainer)
   return (
     <Modal title="Редагувати клієнта" onClose={onClose}>
       <FRow label="ПІБ"><input type="text" value={name} onChange={e => setName(e.target.value)} /></FRow>
       <FRow label="Телефон"><input type="text" value={phone} onChange={e => setPhone(e.target.value)} /></FRow>
-      <button className="btn btn-grn" onClick={() => { if (!name.trim()) return alert('Введіть ПІБ'); onSave({ name: name.trim(), phone: phone.trim() }) }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--txt2)', marginBottom: 14, cursor: 'pointer' }}>
+        <input type="checkbox" checked={isTrainer} onChange={e => setIsTrainer(e.target.checked)} style={{ width: 17, height: 17 }} />
+        👔 Це тренер
+      </label>
+      <button className="btn btn-grn" onClick={() => { if (!name.trim()) return alert('Введіть ПІБ'); onSave({ name: name.trim(), phone: phone.trim(), isTrainer }) }}>
         💾 Зберегти
       </button>
     </Modal>

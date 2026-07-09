@@ -293,6 +293,7 @@ export default function App() {
 function NewMemberModal({ onSave, onClose }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [isTrainer, setIsTrainer] = useState(false)
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <div className="mhdr">
@@ -313,7 +314,11 @@ function NewMemberModal({ onSave, onClose }) {
           <div className="flabel">Телефон</div>
           <input type="text" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+380..." />
         </div>
-        <button className="btn btn-grn" onClick={() => { if (!name.trim()) { alert('Введіть ПІБ'); return } onSave({ name: name.trim(), phone: phone.trim() }) }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--txt2)', marginBottom: 14, cursor: 'pointer' }}>
+          <input type="checkbox" checked={isTrainer} onChange={e => setIsTrainer(e.target.checked)} style={{ width: 17, height: 17 }} />
+          👔 Це тренер
+        </label>
+        <button className="btn btn-grn" onClick={() => { if (!name.trim()) { alert('Введіть ПІБ'); return } onSave({ name: name.trim(), phone: phone.trim(), isTrainer }) }}>
           💾 Зберегти
         </button>
       </div>

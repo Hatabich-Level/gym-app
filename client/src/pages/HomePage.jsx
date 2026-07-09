@@ -15,8 +15,25 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
   const ending   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && ['ending','expired'].includes(abonStatus(a)) }).length
   const checked  = members.filter(m => visitedTodayAny(m.id, abons)).length
   const todayAll = payments.filter(p => p.date === TODAY)
-  const todayCash = todayAll.filter(p => p.method !== 'card').reduce((s,p) => s + (p.amount||0), 0)
-  const todayCard = todayAll.filter(p => p.method === 'card').reduce((s,p) => s + (p.amount||0), 0)
+  function hallSum(method) {
+    return todayAll.reduce((s, p) => {
+      if (p.kind === 'session' || p.kind === 'trainer_abon') {
+        const m = p.kind === 'session' ? p.hallMethod : p.method
+        if (m == null) return s
+        const matches = method === 'cash' ? m !== 'card' : m === 'card'
+        if (!matches) return s
+        const amt = p.kind === 'session' ? (p.hallEarning || 0) : (p.amount || 0)
+        return s + amt
+      }
+      // абонементи (kind === 'abon') та інше — повна сума за методом
+      if (!p.method) return s
+      const matches = method === 'cash' ? p.method !== 'card' : p.method === 'card'
+      if (!matches) return s
+      return s + (p.amount || 0)
+    }, 0)
+  }
+  const todayCash = hallSum('cash')
+  const todayCard = hallSum('card')
 
   // Alerts: expired/ending/frozen — як в оригіналі, з пріоритетом і видимі всім ролям
   const alerts = []
