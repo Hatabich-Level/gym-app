@@ -69,6 +69,11 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
   }, [members, splitSearch, splitClients])
 
   function addSplitClient(m) {
+    if (m.isTrainer) {
+      setSplitClients(prev => [...prev, { id: m.id, name: m.name, isTrainer: true, useAbon: false }])
+      setSplitSearch('')
+      return
+    }
     const ta = getActiveTrainerAbon(m.id, abons)
     setSplitClients(prev => [...prev, { id: m.id, name: m.name, useAbon: !!ta }])
     setSplitSearch('')
@@ -86,10 +91,11 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
   const splitPreview = useMemo(() => {
     const per = parseFloat(splitAmount) || 0
     const count = splitClients.length
-    const payingCount = splitClients.filter(c => !c.useAbon).length
+    const payingCount = splitClients.filter(c => !c.useAbon && !c.isTrainer).length
+    const hallPayingCount = splitClients.filter(c => !c.isTrainer).length
     const trainerTotal = payingCount * per
-    const hallTotal = count * SPLIT_HALL_FEE
-    return { per, count, payingCount, trainerTotal, hallTotal }
+    const hallTotal = hallPayingCount * SPLIT_HALL_FEE
+    return { per, count, payingCount, hallPayingCount, trainerTotal, hallTotal }
   }, [splitClients, splitAmount])
 
   // ── Save solo ─────────────────────────────────────────────────────────────────
@@ -142,6 +148,9 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
 
     const abonsChanged = []
     const clientDetails = splitClients.map(c => {
+      if (c.isTrainer) {
+        return { name: c.name, paid: false, isTrainer: true, trainerAbonId: null }
+      }
       if (c.useAbon && c.id) {
         const ta = getActiveTrainerAbon(c.id, abons)
         if (ta) {
@@ -158,9 +167,10 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
     })
 
     const payingCount = clientDetails.filter(c => c.paid).length
+    const hallPayingCount = splitClients.filter(c => !c.isTrainer).length
     const count = splitClients.length
     const trainerTotal = payingCount * perPerson
-    const hallTotal = count * SPLIT_HALL_FEE
+    const hallTotal = hallPayingCount * SPLIT_HALL_FEE
 
     const p = {
       id: uid(), kind: 'session', sessionType: 'split',
@@ -276,7 +286,12 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
                 {splitResults.map(m => (
                   <div key={m.id} className="mi" onClick={() => addSplitClient(m)}>
                     <Ava name={m.name} size={30} />
-                    <div className="mi-info"><div className="mi-name" style={{ fontSize: 14 }}>{m.name}</div></div>
+                    <div className="mi-info">
+                      <div className="mi-name" style={{ fontSize: 14 }}>
+                        {m.name}
+                        {m.isTrainer && <span className="ai-tag tag-blue" style={{ marginLeft: 6, fontSize: 11 }}>👔</span>}
+                      </div>
+                    </div>
                     <span style={{ color: 'var(--acc)', fontSize: 12 }}>+ Додати</span>
                   </div>
                 ))}
@@ -285,12 +300,13 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
             {splitClients.length > 0 && (
               <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
                 {splitClients.map((c, i) => {
-                  const ta = c.id ? getActiveTrainerAbon(c.id, abons) : null
+                  const ta = (c.id && !c.isTrainer) ? getActiveTrainerAbon(c.id, abons) : null
                   return (
                     <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--brd)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Ava name={c.name} size={28} />
                         <span style={{ flex: 1, fontSize: 14 }}>{c.name}</span>
+                        {c.isTrainer && <span className="ai-tag tag-blue" style={{ fontSize: 11 }}>👔 Тренер — безкоштовно</span>}
                         <button className="alert-dismiss" onClick={() => removeSplitClient(i)}>✕</button>
                       </div>
                       {ta && (
@@ -310,7 +326,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
             {splitPreview.per > 0 && splitClients.length > 0 && (
               <div style={{ fontSize: 14, color: 'var(--grn)', fontWeight: 600, marginBottom: 14 }}>
                 💵 Твоя каса: <b>{splitPreview.trainerTotal} грн</b> ({splitPreview.payingCount} × {splitPreview.per} грн)<br />
-                🏦 Залу: <b>{splitPreview.hallTotal} грн</b> ({splitPreview.count} × {SPLIT_HALL_FEE} грн)
+                🏦 Залу: <b>{splitPreview.hallTotal} грн</b> ({splitPreview.hallPayingCount} × {SPLIT_HALL_FEE} грн)
               </div>
             )}
           </>
