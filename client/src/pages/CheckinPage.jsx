@@ -45,7 +45,17 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
     // вже відбулась при продажу абонементу.
     if (updated.type === 'visit') updated.active = false
 
-    await pushAbons([updated])
+    // Заодно прибираємо застарілі дублікати "активних" абонементів цього ж
+    // клієнта (якщо лишились з минулого) — щоб клієнт не показувався
+    // "Активним" через старий забутий запис.
+    const staleDup = abons.filter(a =>
+      a.memberId === selectedId && a.id !== selectedAbon.id && a.active && a.type !== 'trainer'
+    )
+    const toSave = staleDup.length
+      ? [updated, ...staleDup.map(a => ({ ...a, active: false }))]
+      : [updated]
+
+    await pushAbons(toSave)
 
     alert(`✅ ${selectedMember?.name} відмічено!`)
     setSelectedId(null)

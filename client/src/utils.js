@@ -54,7 +54,10 @@ export const STATUS_TAG = {
 }
 
 export function getActiveAbon(memberId, abons) {
-  return abons.find(a => a.memberId === memberId && a.active && a.type !== 'trainer') || null
+  const list = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
+  if (!list.length) return null
+  // Якщо випадково є кілька "активних" записів (застарілі дублікати) — беремо найновіший за датою початку
+  return list.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0]
 }
 
 export function getActiveTrainerAbon(memberId, abons) {
