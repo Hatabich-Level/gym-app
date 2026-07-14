@@ -194,8 +194,8 @@ select:focus,input:focus{border-color:var(--acc)}
 .sel-chip .x{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:var(--txt2);font-size:11px;cursor:pointer;transition:all .15s;line-height:1}
 .sel-chip .x:hover{background:rgba(255,51,102,.2);color:#ff5588}
 
-/* ── DESKTOP / TABLET ADAPTIVE LAYOUT ─────────────────────────────────── */
-@media (min-width: 720px){
+/* ── TABLET (720–1023px) — той самий мобільний вигляд, просто по центру ── */
+@media (min-width: 720px) and (max-width: 1023px){
   body{background:#070810}
   .hdr,.pg,.nav,.reminder-banner,.fullscreen{
     width:100%;max-width:640px;margin-left:auto;margin-right:auto;box-sizing:border-box;
@@ -217,15 +217,78 @@ select:focus,input:focus{border-color:var(--acc)}
   }
   .modal,.fullscreen{width:100%;max-width:640px;margin:0 auto;border-left:1px solid var(--brd);border-right:1px solid var(--brd);box-sizing:border-box}
   .mhdr{width:100%;max-width:640px;margin-left:auto;margin-right:auto;left:0;right:0;box-sizing:border-box}
-
-  /* картки отримують легку рамку для глибини на світлішому тлі сторінки */
   .card{box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
-
   .login-box{max-width:380px}
 }
 
-/* великі екрани — трішки повітря по краях, без зміни самого контенту */
-@media (min-width: 1000px){
-  .hdr,.nav,.pg,.modal,.mhdr,.fullscreen{max-width:680px}
-  .nav{width:680px}
+/* ── PC / DESKTOP (1024px+) — повноцінний дашборд-вигляд ────────────────── */
+@media (min-width: 1024px){
+  body{background:#070810}
+
+  /* Бічна навігація замість нижньої панелі */
+  .nav{
+    position:fixed;top:0;bottom:auto;left:0;right:auto;transform:none;
+    width:230px;height:100vh;
+    flex-direction:column;align-items:stretch;justify-content:flex-start;
+    gap:4px;padding:22px 12px;
+    border-top:none;border-right:1px solid var(--brd);border-radius:0;
+    box-shadow:none;background:var(--s1);
+  }
+  .nb{
+    flex-direction:row;justify-content:flex-start;align-items:center;
+    gap:12px;padding:11px 14px;border-radius:var(--r2);
+    font-size:14px;font-weight:600;transition:background .15s,color .15s;
+  }
+  .nb.on{background:rgba(91,141,246,.14)}
+  .nb svg{width:20px;height:20px;flex-shrink:0}
+  .nb.on svg{transform:none}
+  .nb:hover{color:var(--txt)}
+
+  /* Основний контент — широка панель праворуч від сайдбару */
+  .hdr{
+    left:230px;right:0;max-width:none;margin:0;
+    padding:24px 36px;border-radius:0;box-shadow:none;
+  }
+  .pg{
+    margin-left:230px;max-width:1320px;
+    padding:26px 36px 60px;box-sizing:border-box;
+    box-shadow:none;border:none;background:var(--bg);
+    min-height:100vh;
+  }
+  .reminder-banner{left:230px}
+
+  /* Статистичні сітки — більше колонок на широкому екрані */
+  .stats2{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;max-width:900px}
+  .stats3{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;max-width:1100px}
+  .sv{font-size:28px}
+  .stats3 .sv{font-size:22px}
+  .sc{padding:18px 20px}
+
+  /* Картки — трохи більше повітря, "адмінський" вигляд */
+  .card{padding:20px 22px;border-radius:var(--r)}
+
+  /* Рядки списків — ефект наведення, як у веб-таблицях */
+  .mi,.payment-item,.irow,.debt-item,.alert-item,.vitem{
+    padding-left:8px;padding-right:8px;border-radius:8px;transition:background .12s;
+  }
+  .mi:hover,.payment-item:hover,.alert-item:hover{background:rgba(255,255,255,.03)}
+
+  /* Пошук і таби не розтягуються на всю ширину дашборда */
+  .sr{max-width:420px}
+  .tabs{max-width:640px}
+
+  /* Модалки/повноекранні форми — спливаючі вікна по центру, а не мобільні "простирадла" */
+  .modal,.fullscreen{
+    top:6vh!important;bottom:6vh!important;
+    left:50%!important;right:auto!important;
+    transform:translateX(-50%)!important;
+    width:600px!important;max-width:92vw;
+    border-radius:var(--r);
+    border:1px solid var(--brd);
+    box-shadow:0 30px 80px rgba(0,0,0,.6);
+    overflow-y:auto;
+  }
+  .mhdr{border-radius:var(--r) var(--r) 0 0;padding-top:20px}
+
+  .login-box{max-width:400px}
 }
