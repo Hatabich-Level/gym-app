@@ -246,7 +246,7 @@ select:focus,input:focus{border-color:var(--acc)}
 
   /* Основний контент — широка панель праворуч від сайдбару */
   .hdr{
-    left:230px;right:0;max-width:none;margin:0;
+    margin-left:230px;max-width:none;margin-right:0;
     padding:24px 36px;border-radius:0;box-shadow:none;
   }
   .pg{
@@ -279,10 +279,12 @@ select:focus,input:focus{border-color:var(--acc)}
 
   /* Модалки/повноекранні форми — спливаючі вікна по центру, а не мобільні "простирадла" */
   .modal,.fullscreen{
+    position:fixed!important;
     top:6vh!important;bottom:6vh!important;
     left:50%!important;right:auto!important;
     transform:translateX(-50%)!important;
     width:600px!important;max-width:92vw;
+    height:auto!important;
     border-radius:var(--r);
     border:1px solid var(--brd);
     box-shadow:0 30px 80px rgba(0,0,0,.6);
