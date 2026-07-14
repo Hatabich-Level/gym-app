@@ -19,7 +19,12 @@ export default function MemberDetail({
   const allAbons = abons.filter(a => a.memberId === memberId && a.type !== 'trainer')
     .sort((a,b) => (b.startDate||'').localeCompare(a.startDate||''))
   const activeAbon = getActiveAbon(memberId, abons)
-  const st = activeAbon ? abonStatus(activeAbon) : null
+  // Для відображення в головній картці беремо активний абонемент, а якщо
+  // такого немає (наприклад, разовий вже "закрився" одразу після
+  // покупки/відвідування) — показуємо останній за датою запис, щоб деталі
+  // (ціна, оплата, час відвідування) не зникали з очей одразу.
+  const displayAbon = activeAbon || allAbons[0] || null
+  const st = displayAbon ? abonStatus(displayAbon) : null
   const trainerAbon = getActiveTrainerAbon(memberId, abons)
   const debt = activeAbon ? getMemberDebt(memberId, abons, payments) : 0
 
@@ -29,8 +34,8 @@ export default function MemberDetail({
   const allActiveRaw = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
   const duplicateActiveAbons = allActiveRaw.filter(a => a.id !== (activeAbon && activeAbon.id))
 
-  // Історія (все, крім поточного активного запису)
-  const history = allAbons.filter(a => a.id !== (activeAbon && activeAbon.id))
+  // Історія (все, крім запису, що показаний у головній картці)
+  const history = allAbons.filter(a => a.id !== (displayAbon && displayAbon.id))
 
   const memberPays = payments
     .filter(p => p.memberId === memberId && p.kind !== 'session')
@@ -135,9 +140,9 @@ export default function MemberDetail({
         )}
 
         {/* Active abon card */}
-        {activeAbon ? (
+        {displayAbon ? (
           <ActiveAbonCard
-            abon={activeAbon} status={st} role={role} debt={debt}
+            abon={displayAbon} status={st} role={role} debt={debt}
             onPay={() => setModal('pay')}
             onExtend={() => setModal('extend')}
             onFreeze={() => setModal('freeze')}
@@ -154,17 +159,17 @@ export default function MemberDetail({
           )
         )}
 
-        {isAdmin && activeAbon && (
+        {isAdmin && displayAbon && (
           <button className="btn btn-gray" style={{ marginBottom: 12 }} onClick={() => setModal('abon')}>
             + Новий абонемент
           </button>
         )}
 
         {/* Visit history */}
-        {activeAbon && (activeAbon.visits || []).length > 0 && (
+        {displayAbon && (displayAbon.visits || []).length > 0 && (
           <div className="card">
             <div className="ct">Відвідування</div>
-            {[...activeAbon.visits].reverse().slice(0, 15).map((v, i) => (
+            {[...displayAbon.visits].reverse().slice(0, 15).map((v, i) => (
               <div key={i} className="vitem">
                 <span>{fmtDate(v.date)}</span>
                 <span style={{ color: 'var(--txt2)' }}>{v.time}</span>
@@ -172,6 +177,7 @@ export default function MemberDetail({
             ))}
           </div>
         )}
+
 
         {/* Payments tied to abon (history) */}
         {memberPays.length > 0 && (
@@ -251,9 +257,9 @@ export default function MemberDetail({
           onClose={() => setModal(null)}
         />
       )}
-      {modal === 'extend' && activeAbon && (
+      {modal === 'extend' && displayAbon && (
         <ExtendAbonModal
-          abon={activeAbon}
+          abon={displayAbon}
           memberId={memberId}
           memberName={mem.name}
           onSave={async (updatedAbon, payment) => {
@@ -431,7 +437,10 @@ function AddAbonModal({ memberId, memberName, activeAbon, onSave, onClose }) {
       id: abonId, memberId,
       type, startDate: startDate || TODAY,
       endDate, price: p, paid: pa,
-      active: true, frozen: false, freezeStart: null,
+      // Разовий вважається одразу використаним (клієнт прийшов і оплатив
+      // "тут і зараз"), тож він одразу закривається — не лишається "активним"
+      active: type === 'visit' ? false : true,
+      frozen: false, freezeStart: null,
       extraDays: 0, freezeLog: [],
       visits: type === 'visit' ? [{ date: startDate || TODAY, time: nowTime() }] : [],
       ...(activeAbon ? { prevAbonId: activeAbon.id } : {})
