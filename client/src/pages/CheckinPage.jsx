@@ -96,59 +96,61 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
         </div>
       )}
 
-      {/* Selected client */}
-      {selectedMember && (
-        <div className="card" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Ava name={selectedMember.name} />
-              <div>
-                <div style={{ fontWeight: 600 }}>{selectedMember.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
-                  {selectedAbon ? (selectedAbon.type === 'month' ? 'до ' + fmtDate(selectedAbon.endDate) : 'Разовий') : 'Без абонементу'}
+      <div className="dgrid2">
+        {/* Selected client */}
+        {selectedMember && (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Ava name={selectedMember.name} />
+                <div>
+                  <div style={{ fontWeight: 600 }}>{selectedMember.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
+                    {selectedAbon ? (selectedAbon.type === 'month' ? 'до ' + fmtDate(selectedAbon.endDate) : 'Разовий') : 'Без абонементу'}
+                  </div>
                 </div>
               </div>
+              <button
+                style={{ background: 'none', border: 'none', color: 'var(--txt2)', cursor: 'pointer', fontSize: 16 }}
+                onClick={() => { setSelectedId(null); setQuery('') }}
+              >✕</button>
             </div>
+
             <button
-              style={{ background: 'none', border: 'none', color: 'var(--txt2)', cursor: 'pointer', fontSize: 16 }}
-              onClick={() => { setSelectedId(null); setQuery('') }}
-            >✕</button>
+              className={`checkin-btn ${!canCheckin() ? 'disabled' : ''}`}
+              onClick={canCheckin() ? doCheckin : undefined}
+            >
+              {!selectedAbon ? '❌ Немає абонементу' :
+               selectedAbon.frozen ? '❄️ Абонемент заморожено' :
+               selectedSt === 'expired' ? '❌ Абонемент прострочено' :
+               (selectedAbon.visits||[]).find(v => v.date === TODAY) ? '✅ Вже відмічено сьогодні' :
+               '✅ Відмітити відвідування'}
+            </button>
           </div>
+        )}
 
-          <button
-            className={`checkin-btn ${!canCheckin() ? 'disabled' : ''}`}
-            onClick={canCheckin() ? doCheckin : undefined}
-          >
-            {!selectedAbon ? '❌ Немає абонементу' :
-             selectedAbon.frozen ? '❄️ Абонемент заморожено' :
-             selectedSt === 'expired' ? '❌ Абонемент прострочено' :
-             (selectedAbon.visits||[]).find(v => v.date === TODAY) ? '✅ Вже відмічено сьогодні' :
-             '✅ Відмітити відвідування'}
-          </button>
-        </div>
-      )}
-
-      {/* Checked today */}
-      {checkedToday.length > 0 && (
-        <div className="card">
-          <div className="ct">✅ Відмічені сьогодні — {checkedToday.length}</div>
-          {checkedToday.map(m => {
-            const ab = getActiveAbon(m.id, abons)
-            const lastVisit = abons.filter(a => a.memberId === m.id).flatMap(a => a.visits||[]).filter(v => v.date === TODAY).pop()
-            const sub = ab ? (ab.type === 'month' ? 'до ' + fmtDate(ab.endDate) : ab.type === 'visit' ? 'Разовий' : 'Абонемент тренера') : 'Разовий'
-            return (
-              <div key={m.id} className="mi" style={{ cursor: 'default' }}>
-                <Ava name={m.name} />
-                <div className="mi-info">
-                  <div className="mi-name">{m.name}</div>
-                  <div className="mi-sub">{sub}{lastVisit ? ' · ' + lastVisit.time : ''}</div>
+        {/* Checked today */}
+        {checkedToday.length > 0 && (
+          <div className="card">
+            <div className="ct">✅ Відмічені сьогодні — {checkedToday.length}</div>
+            {checkedToday.map(m => {
+              const ab = getActiveAbon(m.id, abons)
+              const lastVisit = abons.filter(a => a.memberId === m.id).flatMap(a => a.visits||[]).filter(v => v.date === TODAY).pop()
+              const sub = ab ? (ab.type === 'month' ? 'до ' + fmtDate(ab.endDate) : ab.type === 'visit' ? 'Разовий' : 'Абонемент тренера') : 'Разовий'
+              return (
+                <div key={m.id} className="mi" style={{ cursor: 'default' }}>
+                  <Ava name={m.name} />
+                  <div className="mi-info">
+                    <div className="mi-name">{m.name}</div>
+                    <div className="mi-sub">{sub}{lastVisit ? ' · ' + lastVisit.time : ''}</div>
+                  </div>
+                  <span className="ai-tag tag-grn">✓</span>
                 </div>
-                <span className="ai-tag tag-grn">✓</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

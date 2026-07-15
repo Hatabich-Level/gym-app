@@ -35,6 +35,37 @@ function sumBy(arr, method) {
   }, 0)
 }
 
+// ── Простий графік динаміки доходу по місяцях (без зовнішніх бібліотек) ───────
+function MonthlyBarChart({ data }) {
+  if (!data || data.length < 2) return null
+  const chrono = [...data].reverse() // від старіших до новіших, зліва направо
+  const max = Math.max(1, ...chrono.map(([, v]) => v))
+  const w = 600, h = 160, padB = 22, padT = 14, gap = 12
+  const barW = (w - gap * (chrono.length + 1)) / chrono.length
+  const monthNames = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру']
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', display: 'block', marginBottom: 16 }}>
+      {chrono.map(([m, v], i) => {
+        const [, mo] = m.split('-')
+        const barH = Math.max(2, (v / max) * (h - padB - padT))
+        const x = gap + i * (barW + gap)
+        const yTop = h - padB - barH
+        const isLast = i === chrono.length - 1
+        return (
+          <g key={m}>
+            <rect x={x} y={yTop} width={barW} height={barH} rx={4}
+              style={{ fill: 'var(--acc)', opacity: isLast ? 1 : 0.5 }} />
+            <text x={x + barW / 2} y={yTop - 5} textAnchor="middle"
+              style={{ fontSize: 10, fill: 'var(--txt2)', fontWeight: isLast ? 700 : 400 }}>{v}</text>
+            <text x={x + barW / 2} y={h - 6} textAnchor="middle"
+              style={{ fontSize: 10, fill: 'var(--txt2)' }}>{monthNames[parseInt(mo) - 1]}</text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pushPayment }) {
   const [editPayment, setEditPayment] = useState(null)
   const thisMonth = TODAY.slice(0,7)
@@ -148,23 +179,26 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
       <div className="sc"><div className="sv" style={{color:'var(--acc)'}}>{mCard}</div><div className="sl">💳 Картка (міс)</div></div>
       <div className="sc"><div className="sv">{mCash+mCard}</div><div className="sl">Всього за місяць</div></div>
     </div>
-    <div className="card">
-      <div className="ct">🏦 Каса залу за місяць</div>
-      <div className="irow"><span className="ikey">Каса залу</span><span className="ival" style={{color:'var(--acc)',fontWeight:700}}>{mHall} грн</span></div>
-      {Object.entries(trainerMap).map(([t,e]) => (
-        <div key={t} className="irow" style={{paddingLeft:16}}><span className="ikey" style={{color:'var(--txt2)'}}>· {t}</span><span className="ival" style={{color:'var(--acc)'}}>{e} грн</span></div>
-      ))}
-    </div>
-    <div className="card">
-      <div className="ct">За весь час</div>
-      <div className="irow"><span className="ikey">🏦 Каса залу</span><span className="ival" style={{color:'var(--acc)'}}>{aHall} грн</span></div>
-      <div className="irow"><span className="ikey">💵 Готівка</span><span className="ival" style={{color:'var(--grn)'}}>{aCash} грн</span></div>
-      <div className="irow"><span className="ikey">💳 Картка</span><span className="ival" style={{color:'var(--acc)'}}>{aCard} грн</span></div>
-      <div className="irow"><span className="ikey">Загальна сума</span><span className="ival" style={{fontWeight:700}}>{aCash+aCard} грн</span></div>
+    <div className="dgrid2">
+      <div className="card">
+        <div className="ct">🏦 Каса залу за місяць</div>
+        <div className="irow"><span className="ikey">Каса залу</span><span className="ival" style={{color:'var(--acc)',fontWeight:700}}>{mHall} грн</span></div>
+        {Object.entries(trainerMap).map(([t,e]) => (
+          <div key={t} className="irow" style={{paddingLeft:16}}><span className="ikey" style={{color:'var(--txt2)'}}>· {t}</span><span className="ival" style={{color:'var(--acc)'}}>{e} грн</span></div>
+        ))}
+      </div>
+      <div className="card">
+        <div className="ct">За весь час</div>
+        <div className="irow"><span className="ikey">🏦 Каса залу</span><span className="ival" style={{color:'var(--acc)'}}>{aHall} грн</span></div>
+        <div className="irow"><span className="ikey">💵 Готівка</span><span className="ival" style={{color:'var(--grn)'}}>{aCash} грн</span></div>
+        <div className="irow"><span className="ikey">💳 Картка</span><span className="ival" style={{color:'var(--acc)'}}>{aCard} грн</span></div>
+        <div className="irow"><span className="ikey">Загальна сума</span><span className="ival" style={{fontWeight:700}}>{aCash+aCard} грн</span></div>
+      </div>
     </div>
     {sortedMonths.length > 0 && (
       <div className="card">
         <div className="ct">Отримано за абонементи по місяцях</div>
+        <MonthlyBarChart data={sortedMonths} />
         {sortedMonths.map(([m,total]) => {
           const [y,mo] = m.split('-')
           const mn = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'][parseInt(mo)-1]
@@ -377,13 +411,17 @@ function DebtsTab({ manualDebts, members, abons, payments, role, saveManualDebt,
       )}
 
       {/* Ручні борги */}
-      {active.length > 0 ? active.map(d => (
-        <DebtCard key={d.id} debt={d} members={members} role={role}
-          onPay={() => setModal({ type: 'pay', debtId: d.id })}
-          onEdit={() => setModal({ type: 'edit', debtId: d.id })}
-          onDelete={() => { if(confirm('Видалити?')) deleteManualDebt(d.id) }}
-        />
-      )) : (abonDebtors.length === 0 && <Empty text="Активних боргів немає" />)}
+      {active.length > 0 ? (
+        <div className="dgrid2">
+          {active.map(d => (
+            <DebtCard key={d.id} debt={d} members={members} role={role}
+              onPay={() => setModal({ type: 'pay', debtId: d.id })}
+              onEdit={() => setModal({ type: 'edit', debtId: d.id })}
+              onDelete={() => { if(confirm('Видалити?')) deleteManualDebt(d.id) }}
+            />
+          ))}
+        </div>
+      ) : (abonDebtors.length === 0 && <Empty text="Активних боргів немає" />)}
 
       {paid.length > 0 && (
         <div className="card" style={{ marginTop: 12 }}>

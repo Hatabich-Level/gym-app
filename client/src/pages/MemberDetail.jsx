@@ -74,7 +74,7 @@ export default function MemberDetail({
   }
 
   return (
-    <div className="fullscreen" style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 40 }}>
+    <div className="fullscreen detail-view" style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 40 }}>
       {/* Header */}
       <div className="mhdr">
         <button className="back" onClick={onBack}>
@@ -94,121 +94,126 @@ export default function MemberDetail({
         )}
       </div>
 
-      <div style={{ padding: 14 }}>
-        {/* Trainer abon (заняття) — показуємо окремо, якщо є */}
-        {trainerAbon && (
-          <div className="card">
-            <div className="ct">🎫 Абонемент від тренера</div>
-            <div className="irow">
-              <span className="ikey">Залишилось занять</span>
-              <span className="ival" style={{ color: 'var(--grn)', fontWeight: 700 }}>{trainerAbon.sessionsLeft} з {trainerAbon.totalSessions}</span>
-            </div>
-            {trainerAbon.price > 0 && (
-              <div className="irow"><span className="ikey">Ціна</span><span className="ival">{trainerAbon.price} грн</span></div>
-            )}
-            <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(trainerAbon.startDate)}</span></div>
-            {trainerAbon.bonusLog && trainerAbon.bonusLog.length > 0 && (
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--brd)' }}>
-                {trainerAbon.bonusLog.map((b, i) => (
-                  <div key={i} style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 4 }}>
-                    ➕ {b.date}: +{b.count} зан. — {b.reason}
-                  </div>
-                ))}
+      <div style={{ padding: 14 }} className="detail-grid">
+        <div className="detail-col-main">
+          {/* Trainer abon (заняття) — показуємо окремо, якщо є */}
+          {trainerAbon && (
+            <div className="card">
+              <div className="ct">🎫 Абонемент від тренера</div>
+              <div className="irow">
+                <span className="ikey">Залишилось занять</span>
+                <span className="ival" style={{ color: 'var(--grn)', fontWeight: 700 }}>{trainerAbon.sessionsLeft} з {trainerAbon.totalSessions}</span>
               </div>
-            )}
-            <button className="btn-sm btn-acc" style={{ marginTop: 10, width: '100%' }} onClick={() => setModal('addTrainerSessions')}>
-              + Додати заняття (поважна причина)
+              {trainerAbon.price > 0 && (
+                <div className="irow"><span className="ikey">Ціна</span><span className="ival">{trainerAbon.price} грн</span></div>
+              )}
+              <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(trainerAbon.startDate)}</span></div>
+              {trainerAbon.bonusLog && trainerAbon.bonusLog.length > 0 && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--brd)' }}>
+                  {trainerAbon.bonusLog.map((b, i) => (
+                    <div key={i} style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 4 }}>
+                      ➕ {b.date}: +{b.count} зан. — {b.reason}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button className="btn-sm btn-acc" style={{ marginTop: 10, width: '100%' }} onClick={() => setModal('addTrainerSessions')}>
+                + Додати заняття (поважна причина)
+              </button>
+            </div>
+          )}
+
+          {/* Freeze banner */}
+          {activeAbon && activeAbon.frozen && (
+            <div className="frozen-banner">
+              ❄️ Заморожено {daysDiff(activeAbon.freezeStart, TODAY)} дн. тому (з {fmtDate(activeAbon.freezeStart)}). Дні будуть додані до абонементу після розморозки.
+            </div>
+          )}
+
+          {/* Data-integrity warning: duplicate active abons */}
+          {duplicateActiveAbons.length > 0 && isAdmin && (
+            <div className="card" style={{ borderColor: 'rgba(255,51,102,.35)', background: 'rgba(255,51,102,.06)' }}>
+              <div style={{ fontSize: 13, color: 'var(--txt)', marginBottom: 10, lineHeight: 1.5 }}>
+                ⚠️ У клієнта знайдено {duplicateActiveAbons.length} застарілих запис(и/ів), позначених як "активні" одночасно з поточним абонементом. Показується найновіший, але радимо це полагодити.
+              </div>
+              <button className="btn btn-red btn-sm" onClick={fixDuplicateAbons}>🔧 Полагодити дублікати</button>
+            </div>
+          )}
+
+          {/* Active abon card */}
+          {displayAbon ? (
+            <ActiveAbonCard
+              abon={displayAbon} status={st} role={role} debt={debt}
+              onPay={() => setModal('pay')}
+              onExtend={() => setModal('extend')}
+              onFreeze={() => setModal('freeze')}
+              onUnfreeze={doUnfreeze}
+              onDeleteAbon={deleteCurrentAbon}
+            />
+          ) : (
+            isAdmin && (
+              <div className="card" style={{ textAlign: 'center', padding: 28 }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>🎫</div>
+                <div style={{ fontSize: 15, marginBottom: 16, color: 'var(--txt2)' }}>Немає активного абонементу</div>
+                <button className="btn btn-acc" onClick={() => setModal('abon')}>+ Додати абонемент</button>
+              </div>
+            )
+          )}
+
+          {isAdmin && displayAbon && (
+            <button className="btn btn-gray" style={{ marginBottom: 12 }} onClick={() => setModal('abon')}>
+              + Новий абонемент
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Freeze banner */}
-        {activeAbon && activeAbon.frozen && (
-          <div className="frozen-banner">
-            ❄️ Заморожено {daysDiff(activeAbon.freezeStart, TODAY)} дн. тому (з {fmtDate(activeAbon.freezeStart)}). Дні будуть додані до абонементу після розморозки.
-          </div>
-        )}
-
-        {/* Data-integrity warning: duplicate active abons */}
-        {duplicateActiveAbons.length > 0 && isAdmin && (
-          <div className="card" style={{ borderColor: 'rgba(255,51,102,.35)', background: 'rgba(255,51,102,.06)' }}>
-            <div style={{ fontSize: 13, color: 'var(--txt)', marginBottom: 10, lineHeight: 1.5 }}>
-              ⚠️ У клієнта знайдено {duplicateActiveAbons.length} застарілих запис(и/ів), позначених як "активні" одночасно з поточним абонементом. Показується найновіший, але радимо це полагодити.
-            </div>
-            <button className="btn btn-red btn-sm" onClick={fixDuplicateAbons}>🔧 Полагодити дублікати</button>
-          </div>
-        )}
-
-        {/* Active abon card */}
-        {displayAbon ? (
-          <ActiveAbonCard
-            abon={displayAbon} status={st} role={role} debt={debt}
-            onPay={() => setModal('pay')}
-            onExtend={() => setModal('extend')}
-            onFreeze={() => setModal('freeze')}
-            onUnfreeze={doUnfreeze}
-            onDeleteAbon={deleteCurrentAbon}
-          />
-        ) : (
-          isAdmin && (
-            <div className="card" style={{ textAlign: 'center', padding: 28 }}>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>🎫</div>
-              <div style={{ fontSize: 15, marginBottom: 16, color: 'var(--txt2)' }}>Немає активного абонементу</div>
-              <button className="btn btn-acc" onClick={() => setModal('abon')}>+ Додати абонемент</button>
-            </div>
-          )
-        )}
-
-        {isAdmin && displayAbon && (
-          <button className="btn btn-gray" style={{ marginBottom: 12 }} onClick={() => setModal('abon')}>
-            + Новий абонемент
-          </button>
-        )}
-
-        {/* Visit history */}
-        {displayAbon && (displayAbon.visits || []).length > 0 && (
-          <div className="card">
-            <div className="ct">Відвідування</div>
-            {[...displayAbon.visits].reverse().slice(0, 15).map((v, i) => (
-              <div key={i} className="vitem">
-                <span>{fmtDate(v.date)}</span>
-                <span style={{ color: 'var(--txt2)' }}>{v.time}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-
-        {/* Payments tied to abon (history) */}
-        {memberPays.length > 0 && (
-          <div className="card">
-            <div className="ct">Платежі</div>
-            {memberPays.map(p => (
-              <div key={p.id} className="payment-item">
-                <div>
-                  <div>{fmtDate(p.date)}{p.time ? ' ' + p.time : ''}</div>
-                  <div style={{ color: 'var(--txt2)', fontSize: 11 }}>{p.note || 'Абонемент'}</div>
+        <div className="detail-col-side">
+          {/* Visit history */}
+          {displayAbon && (displayAbon.visits || []).length > 0 && (
+            <div className="card">
+              <div className="ct">Відвідування</div>
+              {[...displayAbon.visits].reverse().slice(0, 15).map((v, i) => (
+                <div key={i} className="vitem">
+                  <span>{fmtDate(v.date)}</span>
+                  <span style={{ color: 'var(--txt2)' }}>{v.time}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <MethodPill method={p.method} />
-                  <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.amount} грн</span>
-                  {isAdmin && (
-                    <IconBtn onClick={() => { if (confirm('Видалити платіж?')) deletePayment(p.id) }} title="Видалити">✕</IconBtn>
-                  )}
+              ))}
+            </div>
+          )}
+
+          {/* Payments tied to abon (history) */}
+          {memberPays.length > 0 && (
+            <div className="card">
+              <div className="ct">Платежі</div>
+              {memberPays.map(p => (
+                <div key={p.id} className="payment-item">
+                  <div>
+                    <div>{fmtDate(p.date)}{p.time ? ' ' + p.time : ''}</div>
+                    <div style={{ color: 'var(--txt2)', fontSize: 11 }}>{p.note || 'Абонемент'}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <MethodPill method={p.method} />
+                    <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.amount} грн</span>
+                    {isAdmin && (
+                      <IconBtn onClick={() => { if (confirm('Видалити платіж?')) deletePayment(p.id) }} title="Видалити">✕</IconBtn>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {/* Abon history */}
-        {history.length > 0 && (
-          <div className="card">
-            <div className="ct">Історія абонементів</div>
-            {history.map(ab => <AbonRow key={ab.id} abon={ab} />)}
-          </div>
-        )}
+          {/* Abon history */}
+          {history.length > 0 && (
+            <div className="card">
+              <div className="ct">Історія абонементів</div>
+              {history.map(ab => <AbonRow key={ab.id} abon={ab} />)}
+            </div>
+          )}
+        </div>
+      </div>
 
+      <div style={{ padding: '0 14px' }}>
         {/* Danger zone */}
         {isOwner && (
           <button className="btn btn-red" onClick={() => {

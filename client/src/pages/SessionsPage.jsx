@@ -384,21 +384,23 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
           </div>
         )}
 
-        {/* Дата */}
-        <div className="frow">
-          <div className="flabel">Дата заняття</div>
-          <div className="method-toggle">
-            <button className={`method-btn ${dateMode === 'today' ? 'on-cash' : ''}`} onClick={() => setDateMode('today')}>📅 Сьогодні</button>
-            <button className={`method-btn ${dateMode === 'past' ? 'on-cash' : ''}`} onClick={() => setDateMode('past')}>🕓 Задня дата</button>
+        <div className="frow-pair">
+          {/* Дата */}
+          <div className="frow">
+            <div className="flabel">Дата заняття</div>
+            <div className="method-toggle">
+              <button className={`method-btn ${dateMode === 'today' ? 'on-cash' : ''}`} onClick={() => setDateMode('today')}>📅 Сьогодні</button>
+              <button className={`method-btn ${dateMode === 'past' ? 'on-cash' : ''}`} onClick={() => setDateMode('past')}>🕓 Задня дата</button>
+            </div>
+            {dateMode === 'past' && (
+              <input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)} max={TODAY} style={{ marginTop: 8 }} />
+            )}
           </div>
-          {dateMode === 'past' && (
-            <input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)} max={TODAY} style={{ marginTop: 8 }} />
-          )}
-        </div>
 
-        <FRow label="Примітка (необов'язково)">
-          <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="напр: персональне тренування" />
-        </FRow>
+          <FRow label="Примітка (необов'язково)">
+            <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="напр: персональне тренування" />
+          </FRow>
+        </div>
 
         <button className="btn btn-grn" onClick={sType === 'solo' ? saveSolo : saveSplit}>
           💾 Записати заняття

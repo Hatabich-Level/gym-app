@@ -156,37 +156,49 @@ export default function MembersPage({ members, abons, role, isOwner, onOpen, onA
       )}
 
       {/* List */}
-      <div key={tab} style={{ animation: 'fadeIn .2s ease both' }}>
+      <div key={tab} className="mtable" style={{ animation: 'fadeIn .2s ease both' }}>
         {shown.length === 0 ? (
           <Empty />
         ) : (
-          shown.map(m => {
-            const ab = getActiveAbon(m.id, abons)
-            const st = ab ? abonStatus(ab) : null
-            return (
-              <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
-                {isOwner && (
-                  <input type="checkbox"
-                    checked={selected.has(m.id)}
-                    onChange={e => toggleSelect(m.id, e)}
-                    onClick={e => e.stopPropagation()}
-                    style={{ width: 17, height: 17, flexShrink: 0 }}
-                  />
-                )}
-                <Ava name={m.name} />
-                <div className="mi-info">
-                  <div className="mi-name">
-                    {m.name}
-                    {m.isTrainer && <span className="ai-tag tag-blue" style={{ marginLeft: 6, fontSize: 11 }}>👔 Тренер</span>}
+          <>
+            <div className="mtable-head">
+              <span></span>
+              <span></span>
+              <span>Ім'я</span>
+              <span>Телефон</span>
+              <span>Статус</span>
+            </div>
+            {shown.map(m => {
+              const ab = getActiveAbon(m.id, abons)
+              const st = ab ? abonStatus(ab) : null
+              return (
+                <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
+                  <span className="mi-check-cell" onClick={e => isOwner && e.stopPropagation()}>
+                    {isOwner && (
+                      <input type="checkbox"
+                        checked={selected.has(m.id)}
+                        onChange={e => toggleSelect(m.id, e)}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: 17, height: 17, flexShrink: 0 }}
+                      />
+                    )}
+                  </span>
+                  <Ava name={m.name} />
+                  <div className="mi-info">
+                    <div className="mi-name">
+                      {m.name}
+                      {m.isTrainer && <span className="ai-tag tag-blue" style={{ marginLeft: 6, fontSize: 11 }}>👔 Тренер</span>}
+                    </div>
+                    <div className="mi-sub mi-phone-mobile">{m.phone || (st ? STATUS_LABEL[st] : 'Без абонементу')}</div>
                   </div>
-                  <div className="mi-sub">{m.phone || (st ? STATUS_LABEL[st] : 'Без абонементу')}</div>
+                  <div className="mi-phone-col">{m.phone || '—'}</div>
+                  <span className={`ai-tag ${st ? STATUS_TAG[st] : 'tag-gray'}`}>
+                    {st ? STATUS_LABEL[st] : '—'}
+                  </span>
                 </div>
-                <span className={`ai-tag ${st ? STATUS_TAG[st] : 'tag-gray'}`}>
-                  {st ? STATUS_LABEL[st] : '—'}
-                </span>
-              </div>
-            )
-          })
+              )
+            })}
+          </>
         )}
       </div>
 

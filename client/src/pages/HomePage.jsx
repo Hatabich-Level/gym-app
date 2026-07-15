@@ -100,33 +100,35 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
         </div>
       )}
 
-      {/* Debts summary */}
-      {isAdmin && debtCount > 0 && (
-        <div className="card">
-          <div className="ct">Борги</div>
-          <div className="irow"><span className="ikey">Всього боржників</span><span className="ival" style={{ color: 'var(--red)' }}>{debtCount}</span></div>
-          <div className="irow"><span className="ikey">Загальна сума</span><span className="ival" style={{ color: 'var(--ylw)' }}>{totalDebt} грн</span></div>
-        </div>
-      )}
+      <div className="dgrid2">
+        {/* Debts summary */}
+        {isAdmin && debtCount > 0 && (
+          <div className="card">
+            <div className="ct">Борги</div>
+            <div className="irow"><span className="ikey">Всього боржників</span><span className="ival" style={{ color: 'var(--red)' }}>{debtCount}</span></div>
+            <div className="irow"><span className="ikey">Загальна сума</span><span className="ival" style={{ color: 'var(--ylw)' }}>{totalDebt} грн</span></div>
+          </div>
+        )}
 
-      {/* Alerts — видимі всім ролям, з порожнім станом "Все добре" */}
-      {alerts.length === 0 ? (
-        <div className="card"><div className="empty">✅ Все добре! Немає важливих сповіщень.</div></div>
-      ) : (
-        <div className="card">
-          <div className="ct">Потребує уваги ({alerts.length})</div>
-          {alerts.map(a => (
-            <div key={a.id} className="alert-item" onClick={() => onNavigate('member', a.id)}>
-              <div className="ai-dot" style={{ background: a.dot }} />
-              <div className="ai-info">
-                <div className="ai-name">{a.name}</div>
-                <div className="ai-sub">{a.sub}</div>
+        {/* Alerts — видимі всім ролям, з порожнім станом "Все добре" */}
+        {alerts.length === 0 ? (
+          <div className="card"><div className="empty">✅ Все добре! Немає важливих сповіщень.</div></div>
+        ) : (
+          <div className="card">
+            <div className="ct">Потребує уваги ({alerts.length})</div>
+            {alerts.map(a => (
+              <div key={a.id} className="alert-item" onClick={() => onNavigate('member', a.id)}>
+                <div className="ai-dot" style={{ background: a.dot }} />
+                <div className="ai-info">
+                  <div className="ai-name">{a.name}</div>
+                  <div className="ai-sub">{a.sub}</div>
+                </div>
+                <span className={`ai-tag ${a.tag}`}>{a.tagTxt}</span>
               </div>
-              <span className={`ai-tag ${a.tag}`}>{a.tagTxt}</span>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
     </div>
   )

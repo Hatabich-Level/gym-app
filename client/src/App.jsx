@@ -43,6 +43,30 @@ export default function App() {
     if (auth.role === 'trainer' && page === 'home') setPage('sessions')
   }, [auth.role])
 
+  // Гарячі клавіші (зручно на ПК): Ctrl/Cmd+K — пошук клієнтів, Esc — закрити вікно
+  useEffect(() => {
+    if (!isLoggedIn) return
+    function onKeyDown(e) {
+      const tag = (e.target && e.target.tagName) || ''
+      if (e.key === 'Escape') {
+        if (memberDetailId) { setMemberDetailId(null); return }
+        if (page === 'settings') { setPage(auth.role === 'trainer' ? 'sessions' : 'home'); return }
+        if (tag === 'INPUT' || tag === 'TEXTAREA') { e.target.blur() }
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        navigate('members')
+        setTimeout(() => {
+          const el = document.querySelector('.pg input[type="search"]')
+          if (el) { el.focus(); el.select() }
+        }, 60)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isLoggedIn, memberDetailId, page, auth.role])
+
   function handleLogin(data) {
     setAuth({ token: data.token || localStorage.getItem('gym_token'), role: data.role, name: data.name || '', uid: data.uid || '' })
   }
