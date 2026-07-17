@@ -235,16 +235,27 @@ select:focus,input:focus{border-color:var(--acc)}
     position:fixed;top:0;bottom:auto;left:0;right:auto;transform:none;
     width:230px;height:100vh;
     flex-direction:column;align-items:stretch;justify-content:flex-start;
-    gap:4px;padding:22px 12px;
+    gap:2px;padding:0 12px 22px;
     border-top:none;border-right:1px solid var(--brd);border-radius:0;
     box-shadow:none;background:var(--s1);
   }
+  .nav::before{
+    content:'💪 Спортзал';
+    display:block;font-size:15px;font-weight:700;color:var(--txt);
+    padding:22px 14px 24px;letter-spacing:.2px;
+  }
   .nb{
+    flex:none;position:relative;
     flex-direction:row;justify-content:flex-start;align-items:center;
     gap:12px;padding:11px 14px;border-radius:var(--r2);
-    font-size:14px;font-weight:600;transition:background .15s,color .15s;
+    font-size:14px;font-weight:600;color:var(--txt2);
+    transition:background .15s,color .15s;
   }
-  .nb.on{background:rgba(91,141,246,.14)}
+  .nb.on{background:rgba(91,141,246,.14);color:var(--acc)}
+  .nb.on::before{
+    content:'';position:absolute;left:-12px;top:8px;bottom:8px;width:3px;
+    background:var(--acc);border-radius:0 3px 3px 0;
+  }
   .nb svg{width:20px;height:20px;flex-shrink:0}
   .nb.on svg{transform:none}
   .nb:hover{color:var(--txt);background:rgba(255,255,255,.04)}
@@ -337,18 +348,18 @@ select:focus,input:focus{border-color:var(--acc)}
   .detail-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:0 20px;align-items:start}
   .detail-col-main,.detail-col-side{min-width:0}
 
-  /* Список клієнтів — справжня таблиця з колонками на ПК */
+  /* Список клієнтів — справжня таблиця з колонками на ПК (тільки в .mtable!) */
   .mtable-head{
     display:grid;grid-template-columns:22px 34px 1fr 200px 130px;column-gap:14px;
     padding:0 8px 10px;font-size:11px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px;
     border-bottom:1px solid var(--brd);margin-bottom:4px;
   }
-  .mi{
+  .mtable .mi{
     display:grid;grid-template-columns:22px 34px 1fr 200px 130px;column-gap:14px;
   }
-  .mi-check-cell{display:flex;align-items:center;justify-content:center}
-  .mi-phone-mobile{display:none}
-  .mi-phone-col{display:block;color:var(--txt2);font-size:13px}
+  .mtable .mi-check-cell{display:flex;align-items:center;justify-content:center}
+  .mtable .mi-phone-mobile{display:none}
+  .mtable .mi-phone-col{display:block;color:var(--txt2);font-size:13px}
 
   .login-box{max-width:400px}
 }
