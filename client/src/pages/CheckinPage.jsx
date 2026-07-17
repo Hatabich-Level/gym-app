@@ -49,7 +49,7 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
     // клієнта (якщо лишились з минулого) — щоб клієнт не показувався
     // "Активним" через старий забутий запис.
     const staleDup = abons.filter(a =>
-      a.memberId === selectedId && a.id !== selectedAbon.id && a.active && a.type !== 'trainer'
+      a.memberId === selectedId && a.id !== selectedAbon.id && a.active && !a.deleted && a.type !== 'trainer'
     )
     const toSave = staleDup.length
       ? [updated, ...staleDup.map(a => ({ ...a, active: false }))]

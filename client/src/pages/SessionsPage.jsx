@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import {
-  TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon,
+  TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon, getActiveAbon,
   HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning
 } from '../utils'
 import { FRow, Ava, MethodPill } from '../components/UI'
@@ -606,7 +606,7 @@ function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment,
         {results.length > 0 && (
           <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
             {results.map(m => {
-              const ab = abons.find(a => a.memberId === m.id && a.active && a.type !== 'trainer')
+              const ab = getActiveAbon(m.id, abons)
               return (
                 <div key={m.id} className="mi" onClick={() => { setClientId(m.id); setClientName(m.name); setSearch(m.name) }}>
                   <Ava name={m.name} size={30} />

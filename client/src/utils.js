@@ -54,14 +54,14 @@ export const STATUS_TAG = {
 }
 
 export function getActiveAbon(memberId, abons) {
-  const list = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
+  const list = abons.filter(a => a.memberId === memberId && a.active && !a.deleted && a.type !== 'trainer')
   if (!list.length) return null
   // Якщо випадково є кілька "активних" записів (застарілі дублікати) — беремо найновіший за датою початку
   return list.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0]
 }
 
 export function getActiveTrainerAbon(memberId, abons) {
-  return abons.find(a => a.memberId === memberId && a.type === 'trainer' && a.sessionsLeft > 0) || null
+  return abons.find(a => a.memberId === memberId && a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0) || null
 }
 
 export function visitedToday(ab) {
@@ -69,7 +69,7 @@ export function visitedToday(ab) {
 }
 
 export function visitedTodayAny(memberId, abons) {
-  return abons.some(a => a.memberId === memberId && a.visits && a.visits.some(v => v.date === TODAY))
+  return abons.some(a => a.memberId === memberId && !a.deleted && a.visits && a.visits.some(v => v.date === TODAY))
 }
 
 // ── Member debt (борг по абонементу) ─────────────────────────────────────────

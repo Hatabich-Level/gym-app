@@ -16,7 +16,7 @@ export default function MemberDetail({
 
   if (!mem) return null
 
-  const allAbons = abons.filter(a => a.memberId === memberId && a.type !== 'trainer')
+  const allAbons = abons.filter(a => a.memberId === memberId && a.type !== 'trainer' && !a.deleted)
     .sort((a,b) => (b.startDate||'').localeCompare(a.startDate||''))
   const activeAbon = getActiveAbon(memberId, abons)
   // Для відображення в головній картці беремо активний абонемент, а якщо
@@ -31,7 +31,7 @@ export default function MemberDetail({
   // Виявлення забруднених даних: кілька записів з active=true одночасно
   // (могло лишитись зі старих версій). Показуємо найновіший, а решту
   // пропонуємо деактивувати одним натисканням.
-  const allActiveRaw = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
+  const allActiveRaw = abons.filter(a => a.memberId === memberId && a.active && !a.deleted && a.type !== 'trainer')
   const duplicateActiveAbons = allActiveRaw.filter(a => a.id !== (activeAbon && activeAbon.id))
 
   // Історія (все, крім запису, що показаний у головній картці)
@@ -67,10 +67,13 @@ export default function MemberDetail({
     await pushAbons([updated])
   }
 
+  // Стирає саме той абонемент, що зараз показаний у картці (displayAbon) —
+  // раніше стирались лише "активні" записи, тож закритий разовий (він уже
+  // active:false) не видалявся взагалі і кнопка не мала жодного ефекту.
   async function deleteCurrentAbon() {
-    if (!confirm(`Стерти поточний абонемент клієнта ${mem.name}? Цю дію не можна скасувати.`)) return
-    const staleActive = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
-    await pushAbons(staleActive.map(a => ({ ...a, active: false })))
+    if (!displayAbon) return
+    if (!confirm(`Стерти абонемент клієнта ${mem.name} (${fmtDate(displayAbon.startDate)})? Цю дію не можна скасувати.`)) return
+    await pushAbons([{ ...displayAbon, active: false, deleted: true }])
   }
 
   return (
@@ -239,7 +242,7 @@ export default function MemberDetail({
           activeAbon={activeAbon}
           memberName={mem.name}
           onSave={async (ab, payment) => {
-            const staleActive = abons.filter(a => a.memberId === memberId && a.active && a.type !== 'trainer')
+            const staleActive = abons.filter(a => a.memberId === memberId && a.active && !a.deleted && a.type !== 'trainer')
             if (staleActive.length) await pushAbons([...staleActive.map(a => ({ ...a, active: false })), ab])
             else await pushAbons([ab])
             if (payment) await pushPayment(payment)
