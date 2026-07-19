@@ -63,7 +63,7 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
 
       {/* Stats */}
       <div className="stats2">
-        <div className="sc clickable" onClick={() => onNavigate('members', 'active')}>
+        <div className={`sc ${isAdmin ? 'clickable' : ''}`} onClick={isAdmin ? () => onNavigate('members', 'active') : undefined}>
           <div className="sv">{active}</div>
           <div className="sl">Активних абон.</div>
         </div>

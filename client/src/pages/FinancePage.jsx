@@ -210,9 +210,9 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
       <div className="card">
         <div className="ct">Останні платежі</div>
         {recent.map(p => {
-          const hallAmt = p.kind === 'session' ? (p.hallEarning||p.amount||0) : p.amount
-          const hallMethodDisplay = p.kind === 'session' ? (p.hallMethod || p.method) : p.method
-          const who = p.kind === 'session' ? (p.memberName||'?') : (members.find(m=>m.id===p.memberId)||{name:'?'}).name
+          const hallAmt = p.kind === 'session' ? (p.hallEarning ?? p.amount ?? 0) : p.amount
+          const hallMethodDisplay = p.kind === 'session' ? p.hallMethod : p.method
+          const who = p.memberName || (p.kind === 'session' ? '?' : (members.find(m=>m.id===p.memberId)||{}).name) || '?'
           return (
             <div key={p.id} className="payment-item">
               <div style={{minWidth:0}}>
@@ -246,8 +246,8 @@ function EditPaymentModal({ payment, pushPayment, onClose }) {
   const [trainerEarning, setTrainerEarning] = useState(payment.trainerEarning ?? 0)
   const [hallEarning, setHallEarning] = useState(payment.hallEarning ?? 0)
   const [amount, setAmount] = useState(payment.amount ?? 0)
-  const [method, setMethod] = useState(payment.method ?? 'cash')
-  const [hallMethod, setHallMethod] = useState(payment.hallMethod ?? 'cash')
+  const [method, setMethod] = useState(payment.method ?? null)
+  const [hallMethod, setHallMethod] = useState(payment.hallMethod ?? null)
   const [note, setNote] = useState(payment.note || '')
   const [date, setDate] = useState(payment.date || TODAY)
   const [saving, setSaving] = useState(false)
@@ -301,6 +301,7 @@ function EditPaymentModal({ payment, pushPayment, onClose }) {
                 <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵 Готівка</button>
                 <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳 Картка</button>
               </div>
+              {method == null && <div style={{ fontSize: 12, color: 'var(--ylw)', marginTop: 6 }}>⚠️ Ще не підтверджено — обери варіант</div>}
             </div>
             <div className="frow">
               <div className="flabel">Тренер→зал</div>
@@ -308,6 +309,7 @@ function EditPaymentModal({ payment, pushPayment, onClose }) {
                 <button className={`method-btn ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}>💵 Готівка</button>
                 <button className={`method-btn ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}>💳 Картка</button>
               </div>
+              {hallMethod == null && <div style={{ fontSize: 12, color: 'var(--ylw)', marginTop: 6 }}>⚠️ Ще не підтверджено — обери варіант</div>}
             </div>
           </>
         ) : (
@@ -510,10 +512,10 @@ function DebtCard({ debt, members, role, onPay, onEdit, onDelete }) {
         </div>
       )}
       {isAdmin && (
-        <div className="grid2" style={{ marginTop: 10, marginBottom: 0 }}>
-          <button className="btn btn-grn btn-sm" onClick={onPay}>💰 Оплата</button>
-          <button className="btn btn-gray btn-sm" onClick={onEdit}>✏️ Редагувати</button>
-          <button className="btn btn-red btn-sm" onClick={onDelete}>🗑 Видалити</button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button className="btn btn-grn btn-sm" style={{ flex: 1 }} onClick={onPay}>💰 Оплата</button>
+          <button className="btn btn-gray btn-sm" style={{ flex: 1 }} onClick={onEdit}>✏️ Редагувати</button>
+          <button className="btn btn-red btn-sm" style={{ flex: 1 }} onClick={onDelete}>🗑 Видалити</button>
         </div>
       )}
     </div>
@@ -603,7 +605,7 @@ function ExportTab({ payments, abons }) {
   const [loading, setLoading] = useState(false)
 
   const months = useMemo(() => {
-    const s = new Set()
+    const s = new Set([TODAY.slice(0,7)])
     abons.forEach(ab => (ab.visits||[]).forEach(v => s.add(v.date?.slice(0,7))))
     payments.forEach(p => s.add(p.date?.slice(0,7)))
     return [...s].filter(Boolean).sort((a,b) => b.localeCompare(a))

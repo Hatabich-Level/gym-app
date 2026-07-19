@@ -375,7 +375,9 @@ function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, o
           {debt > 0 && (
             <button className="btn btn-grn btn-sm" onClick={onPay}>💰 Оплата</button>
           )}
-          <button className="btn btn-ylw btn-sm" onClick={onExtend}>🔄 Продовжити</button>
+          {isMonth && (
+            <button className="btn btn-ylw btn-sm" onClick={onExtend}>🔄 Продовжити</button>
+          )}
           {!abon.frozen && st !== 'expired' && (
             <button className="btn btn-ice btn-sm" onClick={onFreeze}>❄️ Заморозити</button>
           )}

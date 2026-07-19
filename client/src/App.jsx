@@ -56,6 +56,7 @@ export default function App() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
+        if (auth.role === 'trainer') return // немає доступу до списку клієнтів
         navigate('members')
         setTimeout(() => {
           const el = document.querySelector('.pg input[type="search"]')
@@ -301,7 +302,7 @@ export default function App() {
             <button
               key={item.key}
               className={`nb ${page === item.key ? 'on' : ''}`}
-              onClick={() => { setPage(item.key); setMemberDetailId(null) }}
+              onClick={() => { setPage(item.key); setMemberDetailId(null); if (item.key === 'members') setMembersInitialTab('all') }}
             >
               {item.icon}
               {item.label}
@@ -319,7 +320,7 @@ function NewMemberModal({ onSave, onClose }) {
   const [phone, setPhone] = useState('')
   const [isTrainer, setIsTrainer] = useState(false)
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div className="fullscreen" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto' }}>
       <div className="mhdr">
         <button className="back" onClick={onClose}>
           <svg width="8" height="14" viewBox="0 0 8 14" fill="none">

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
+import { abonStatus, getActiveAbon, visitedTodayAny, fmtDate, STATUS_LABEL, STATUS_TAG } from '../utils'
 import { Ava, Tabs, Empty } from '../components/UI'
 
 const TABS = [
@@ -251,7 +251,7 @@ function DuplicatesModal({ dupGroups, abons, onDelete, onClose }) {
                       <div style={{ fontWeight: 500 }}>{m.name}</div>
                       <div style={{ fontSize: 12, color: stColor }}>
                         {st ? STATUS_LABEL[st] : 'Без абонементу'}{m.phone ? ' · ' + m.phone : ''}
-                        {ab && ` · ${ab.type === 'trainer' ? ab.sessionsLeft + ' занять' : ab.endDate}`}
+                        {ab && ` · ${ab.type === 'month' ? 'до ' + fmtDate(ab.endDate) : 'разовий'}`}
                       </div>
                     </div>
                     <button

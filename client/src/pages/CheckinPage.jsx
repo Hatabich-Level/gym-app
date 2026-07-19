@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { TODAY, fmtDate, nowTime, abonStatus, getActiveAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
+import { TODAY, fmtDate, nowTime, abonStatus, getActiveAbon, getActiveTrainerAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
 import { Ava, StatusTag } from '../components/UI'
 
 export default function CheckinPage({ members, abons, payments, role, pushAbons, pushPayment }) {
@@ -10,7 +10,7 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
     members.filter(m => visitedTodayAny(m.id, abons))
       .sort((a,b) => {
         const lastVisit = (mb) => {
-          const visits = abons.filter(a => a.memberId === mb.id).flatMap(a => a.visits||[]).filter(v => v.date === TODAY)
+          const visits = abons.filter(a => a.memberId === mb.id && !a.deleted).flatMap(a => a.visits||[]).filter(v => v.date === TODAY)
           return visits.length ? visits[visits.length-1].time : ''
         }
         return lastVisit(b).localeCompare(lastVisit(a))
@@ -24,6 +24,7 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
 
   const selectedMember = members.find(m => m.id === selectedId)
   const selectedAbon = selectedId ? getActiveAbon(selectedId, abons) : null
+  const selectedTrainerAb = selectedId && !selectedAbon ? getActiveTrainerAbon(selectedId, abons) : null
   const selectedSt = selectedAbon ? abonStatus(selectedAbon) : null
 
   function canCheckin() {
@@ -106,7 +107,7 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
                 <div>
                   <div style={{ fontWeight: 600 }}>{selectedMember.name}</div>
                   <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
-                    {selectedAbon ? (selectedAbon.type === 'month' ? 'до ' + fmtDate(selectedAbon.endDate) : 'Разовий') : 'Без абонементу'}
+                    {selectedAbon ? (selectedAbon.type === 'month' ? 'до ' + fmtDate(selectedAbon.endDate) : 'Разовий') : selectedTrainerAb ? 'Абонемент тренера (заняття — на сторінці "Заняття")' : 'Без абонементу'}
                   </div>
                 </div>
               </div>
@@ -120,7 +121,7 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
               className={`checkin-btn ${!canCheckin() ? 'disabled' : ''}`}
               onClick={canCheckin() ? doCheckin : undefined}
             >
-              {!selectedAbon ? '❌ Немає абонементу' :
+              {!selectedAbon ? (selectedTrainerAb ? 'ℹ️ Лише абон. тренера — відмітка на сторінці "Заняття"' : '❌ Немає абонементу') :
                selectedAbon.frozen ? '❄️ Абонемент заморожено' :
                selectedSt === 'expired' ? '❌ Абонемент прострочено' :
                (selectedAbon.visits||[]).find(v => v.date === TODAY) ? '✅ Вже відмічено сьогодні' :
@@ -135,8 +136,9 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
             <div className="ct">✅ Відмічені сьогодні — {checkedToday.length}</div>
             {checkedToday.map(m => {
               const ab = getActiveAbon(m.id, abons)
-              const lastVisit = abons.filter(a => a.memberId === m.id).flatMap(a => a.visits||[]).filter(v => v.date === TODAY).pop()
-              const sub = ab ? (ab.type === 'month' ? 'до ' + fmtDate(ab.endDate) : ab.type === 'visit' ? 'Разовий' : 'Абонемент тренера') : 'Разовий'
+              const trainerAb = !ab ? getActiveTrainerAbon(m.id, abons) : null
+              const lastVisit = abons.filter(a => a.memberId === m.id && !a.deleted).flatMap(a => a.visits||[]).filter(v => v.date === TODAY).pop()
+              const sub = ab ? (ab.type === 'month' ? 'до ' + fmtDate(ab.endDate) : 'Разовий') : trainerAb ? 'Абонемент тренера' : 'Без абонементу'
               return (
                 <div key={m.id} className="mi" style={{ cursor: 'default' }}>
                   <Ava name={m.name} />
