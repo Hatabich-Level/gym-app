@@ -216,7 +216,7 @@ export default function MemberDetail({
         </div>
       </div>
 
-      <div style={{ padding: '0 14px' }}>
+      <div className="danger-zone" style={{ padding: '0 14px' }}>
         {/* Danger zone */}
         {isOwner && (
           <button className="btn btn-red" onClick={() => {

@@ -90,7 +90,7 @@ export default function MembersPage({ members, abons, role, isOwner, onOpen, onA
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div className="mlist-actions" style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <button className="btn btn-acc" style={{ flex: 1, padding: 12, fontSize: 15 }} onClick={onAdd}>
             + Новий клієнт
           </button>

@@ -265,8 +265,9 @@ select:focus,input:focus{border-color:var(--acc)}
     margin-left:230px;max-width:none;margin-right:0;
     padding:22px 40px;border-radius:0;box-shadow:none;
   }
-  .hdr h1{font-size:19px}
-  .hdr p{font-size:12.5px}
+  .hdr{align-items:center}
+  .hdr h1{display:none}
+  .hdr p{font-size:13px;color:var(--txt2)}
   .pg{
     margin-left:230px;max-width:1320px;
     padding:30px 40px 60px;box-sizing:border-box;
@@ -297,10 +298,10 @@ select:focus,input:focus{border-color:var(--acc)}
   .frow-pair{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;align-items:start;max-width:640px}
   .frow-pair > .frow{max-width:none}
 
-  /* Самостійні кнопки-дії всередині карток — нормального розміру, по центру,
-     а не розтягнуті на всю ширину широкої картки */
-  .pg .card > .btn,.pg .card > .checkin-btn{
-    max-width:340px;margin-left:auto;margin-right:auto;
+  /* Самостійні кнопки-дії на сторінці — нормального розміру, по центру,
+     а не розтягнуті на всю ширину широкого дашборда */
+  .pg > .btn,.pg .card > .btn,.pg .card > .checkin-btn{
+    max-width:340px;margin-left:auto;margin-right:auto;display:block;
   }
 
   /* Рядки списків — ефект наведення, як у веб-таблицях */
@@ -318,6 +319,8 @@ select:focus,input:focus{border-color:var(--acc)}
 
   /* Пошук і таби не розтягуються на всю ширину дашборда */
   .sr{max-width:420px}
+  .mlist-actions{max-width:420px}
+  .mlist-actions .btn{max-width:220px}
   .sr::after{
     content:'Ctrl+K';font-size:11px;color:var(--txt2);
     position:absolute;right:14px;top:50%;transform:translateY(-50%);
@@ -347,6 +350,7 @@ select:focus,input:focus{border-color:var(--acc)}
   .detail-view{width:980px!important;max-width:95vw!important}
   .detail-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:0 20px;align-items:start}
   .detail-col-main,.detail-col-side{min-width:0}
+  .danger-zone > .btn{max-width:340px;margin-left:auto;margin-right:auto}
 
   /* Список клієнтів — справжня таблиця з колонками на ПК (тільки в .mtable!) */
   .mtable-head{
