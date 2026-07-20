@@ -121,6 +121,9 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
   monthPays.filter(p => p.kind === 'session' && p.hallMethod != null).forEach(p => {
     const t = p.trainer||'Невідомий'; trainerMap[t] = (trainerMap[t]||0) + (p.hallEarning||0)
   })
+  monthPays.filter(p => p.kind === 'trainer_abon' && p.method != null).forEach(p => {
+    const t = p.trainer||'Невідомий'; trainerMap[t] = (trainerMap[t]||0) + (p.amount||0)
+  })
   const months = {}
   payments?.forEach(p => {
     const m = (p.date || TODAY).slice(0,7)
