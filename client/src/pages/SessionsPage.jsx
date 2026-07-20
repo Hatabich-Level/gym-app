@@ -439,7 +439,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
 function TodaySessionsBlock({ payments, uname, role }) {
   const myName = uname || (role === 'trainer' ? 'Тренер' : '')
   const today = useMemo(() =>
-    payments.filter(p => p.kind === 'session' && p.date === TODAY)
+    payments.filter(p => (p.kind === 'session' || p.kind === 'trainer_abon') && p.date === TODAY)
       .sort((a, b) => (b.time || '').localeCompare(a.time || '')),
     [payments])
   // Адмін бачить ВСІ заняття, тренер — тільки свої
@@ -448,14 +448,15 @@ function TodaySessionsBlock({ payments, uname, role }) {
   const isTrainerView = role === 'trainer'
 
   // Тренер бачить скільки отримав від клієнтів (готівкою/карткою) і свою чисту касу
-  const cash = mine.filter(p => p.method !== 'card').reduce((s, p) => s + (p.amount || 0), 0)
-  const card = mine.filter(p => p.method === 'card').reduce((s, p) => s + (p.amount || 0), 0)
+  const cash = mine.filter(p => p.kind === 'session' && p.method !== 'card').reduce((s, p) => s + (p.amount || 0), 0)
+  const card = mine.filter(p => p.kind === 'session' && p.method === 'card').reduce((s, p) => s + (p.amount || 0), 0)
   const trainerCash = mine.reduce((s, p) => s + (p.trainerEarning || 0), 0)
 
-  // Адмін бачить скільки має прийти в касу залу (за hallMethod)
-  const hallCash = today.filter(p => p.hallMethod === 'cash').reduce((s, p) => s + (p.hallEarning || 0), 0)
-  const hallCard = today.filter(p => p.hallMethod === 'card').reduce((s, p) => s + (p.hallEarning || 0), 0)
-  const hallPending = today.filter(p => p.hallMethod == null).reduce((s, p) => s + (p.hallEarning || 0), 0)
+  // Адмін бачить скільки має прийти в касу залу (за hallMethod для занять і method для абонементів тренера)
+  const hallMethodOf = p => p.kind === 'session' ? p.hallMethod : p.method
+  const hallCash = today.filter(p => hallMethodOf(p) === 'cash').reduce((s, p) => s + (p.hallEarning || 0), 0)
+  const hallCard = today.filter(p => hallMethodOf(p) === 'card').reduce((s, p) => s + (p.hallEarning || 0), 0)
+  const hallPending = today.filter(p => hallMethodOf(p) == null).reduce((s, p) => s + (p.hallEarning || 0), 0)
 
   return (
     <>
@@ -483,8 +484,8 @@ function TodaySessionsBlock({ payments, uname, role }) {
         <div className="card">
           <div className="ct">Заняття сьогодні ({today.length})</div>
           {today.map(p => {
+            const isAbonSale = p.kind === 'trainer_abon'
             const isSplit = p.sessionType === 'split'
-            const isAbonSale = p.sessionType === 'trainer_abon_sale'
             const isDeducted = p.sessionType === 'solo' && p.trainerAbonId
             const icon = isAbonSale ? '🎫' : isSplit ? '👥' : '👤'
             const names = isSplit && p.splitClients ? p.splitClients.join(', ') : (p.memberName || '?')
@@ -499,7 +500,17 @@ function TodaySessionsBlock({ payments, uname, role }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  {p.trainerEarning ? (
+                  {isAbonSale ? (
+                    role === 'trainer' ? (
+                      <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.trainerEarning}</span>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 11, color: 'var(--txt2)' }}>зал:</span>
+                        <MethodPill method={p.method} />
+                        <span style={{ color: 'var(--acc)', fontWeight: 600 }}>+{p.hallEarning}</span>
+                      </>
+                    )
+                  ) : p.trainerEarning ? (
                     role === 'trainer' ? (
                       <>
                         <MethodPill method={p.method} />
@@ -588,7 +599,7 @@ function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment,
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto', paddingBottom: 40 }}>
+    <div className="fullscreen" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, overflowY: 'auto', paddingBottom: 40 }}>
       <div className="mhdr">
         <button className="back" onClick={onClose}>
           <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
