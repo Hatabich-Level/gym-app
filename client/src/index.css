@@ -269,7 +269,9 @@ select:focus,input:focus{border-color:var(--acc)}
   .hdr h1{display:none}
   .hdr p{font-size:13px;color:var(--txt2)}
   .pg{
-    margin-left:230px;max-width:1320px;
+    margin-left:max(230px, calc(230px + (100vw - 1550px)/2));
+    margin-right:auto;
+    max-width:1320px;
     padding:30px 40px 60px;box-sizing:border-box;
     box-shadow:none;border:none;background:var(--bg);
     min-height:100vh;
@@ -298,10 +300,11 @@ select:focus,input:focus{border-color:var(--acc)}
   .frow-pair{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;align-items:start;max-width:640px}
   .frow-pair > .frow{max-width:none}
 
-  /* Самостійні кнопки-дії на сторінці — нормального розміру, по центру,
-     а не розтягнуті на всю ширину широкого дашборда */
+  /* Самостійні кнопки-дії на сторінці — нормального розміру, вирівняні по
+     лівому краю разом з рештою полів форми (а не розтягнуті на всю ширину
+     широкого дашборда, і не "зсунуті" центруванням відносно вузьких полів) */
   .pg > .btn,.pg .card > .btn,.pg .card > .checkin-btn{
-    max-width:340px;margin-left:auto;margin-right:auto;display:block;
+    max-width:400px;
   }
 
   /* Рядки списків — ефект наведення, як у веб-таблицях */
@@ -350,7 +353,7 @@ select:focus,input:focus{border-color:var(--acc)}
   .detail-view{width:980px!important;max-width:95vw!important}
   .detail-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:0 20px;align-items:start}
   .detail-col-main,.detail-col-side{min-width:0}
-  .danger-zone > .btn{max-width:340px;margin-left:auto;margin-right:auto}
+  .danger-zone > .btn{max-width:400px}
 
   /* Список клієнтів — справжня таблиця з колонками на ПК (тільки в .mtable!) */
   .mtable-head{
