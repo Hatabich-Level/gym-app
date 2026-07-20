@@ -586,6 +586,7 @@ function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment,
       payment = {
         id: uid(), kind: 'trainer_abon',
         memberId: clientId, memberName: name,
+        trainer: uname || 'Тренер',
         date: TODAY, time: nowTime(),
         amount: hallEarning, trainerEarning, hallEarning,
         method: role === 'trainer' ? null : hallMethod,
