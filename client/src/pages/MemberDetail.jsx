@@ -152,6 +152,7 @@ export default function MemberDetail({
               onFreeze={() => setModal('freeze')}
               onUnfreeze={doUnfreeze}
               onDeleteAbon={deleteCurrentAbon}
+              onTransfer={() => setModal('transfer')}
             />
           ) : (
             isAdmin && (
@@ -295,12 +296,31 @@ export default function MemberDetail({
           onClose={() => setModal(null)}
         />
       )}
+      {modal === 'transfer' && displayAbon && (
+        <TransferAbonModal
+          abon={displayAbon}
+          fromName={mem.name}
+          members={members.filter(m => m.id !== memberId)}
+          onSave={async (targetMember) => {
+            const updated = {
+              ...displayAbon,
+              memberId: targetMember.id,
+              memberName: targetMember.name,
+              transferLog: [...(displayAbon.transferLog || []), { from: mem.name, to: targetMember.name, date: TODAY }]
+            }
+            await pushAbons([updated])
+            setModal(null)
+            onBack()
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
     </div>
   )
 }
 
 // ── Active abon card ──────────────────────────────────────────────────────────
-function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, onUnfreeze, onDeleteAbon }) {
+function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, onUnfreeze, onDeleteAbon, onTransfer }) {
   const isAdmin = role === 'owner' || role === 'admin'
   const st = status
   const tagClass = STATUS_TAG[st] || 'tag-gray'
@@ -384,6 +404,7 @@ function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, o
           {abon.frozen && (
             <button className="btn btn-acc btn-sm" onClick={onUnfreeze}>▶️ Розморозити</button>
           )}
+          <button className="btn btn-gray btn-sm" onClick={onTransfer}>👤 Передати іншому</button>
           <button className="btn btn-red btn-sm" onClick={onDeleteAbon}>🗑️ Стерти абон.</button>
         </div>
       )}
@@ -656,4 +677,74 @@ function AddTrainerSessionsModal({ abon, onSave, onClose }) {
       </div>
     </Modal>
   )
+}
+
+// ── Transfer abon to another member ────────────────────────────────────────────
+function TransferAbonModal({ abon, fromName, members, onSave, onClose }) {
+  const [search, setSearch] = useState('')
+  const [targetId, setTargetId] = useState(null)
+  const [targetName, setTargetName] = useState('')
+  const [confirmStep, setConfirmStep] = useState(false)
+
+  const results = searchMembers(members, search, targetId)
+
+  function pick(m) {
+    setTargetId(m.id); setTargetName(m.name); setSearch(m.name)
+  }
+
+  function proceed() {
+    if (!targetId) { alert('Виберіть клієнта, якому передати абонемент'); return }
+    setConfirmStep(true)
+  }
+
+  function confirm() {
+    onSave({ id: targetId, name: targetName })
+  }
+
+  return (
+    <Modal title="👤 Передати абонемент іншому клієнту" onClose={onClose}>
+      {!confirmStep ? (
+        <>
+          <div style={{ fontSize: 13, color: 'var(--txt2)', marginBottom: 14, lineHeight: 1.6 }}>
+            Абонемент клієнта <b style={{ color: 'var(--txt)' }}>{fromName}</b> (залишок днів/занять, історія відвідувань) повністю перейде іншому клієнту. У <b style={{ color: 'var(--txt)' }}>{fromName}</b> цей абонемент більше не показуватиметься.
+          </div>
+          <FRow label="Кому передати">
+            <input
+              type="search" placeholder="Пошук клієнта..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); if (targetId) { setTargetId(null); setTargetName('') } }}
+            />
+          </FRow>
+          {results.length > 0 && (
+            <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 14 }}>
+              {results.map(m => (
+                <div key={m.id} className="mi" onClick={() => pick(m)}>
+                  <div className="mi-info"><div className="mi-name" style={{ fontSize: 14 }}>{m.name}</div></div>
+                  <span style={{ color: 'var(--acc)', fontSize: 12 }}>Вибрати</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button className="btn btn-gray" onClick={proceed}>Далі</button>
+        </>
+      ) : (
+        <>
+          <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r2)', padding: '12px 14px', marginBottom: 16, fontSize: 14, lineHeight: 1.7 }}>
+            ⚠️ Точно передати абонемент від <b>{fromName}</b> до <b style={{ color: 'var(--acc)' }}>{targetName}</b>?<br />
+            Цю дію можна скасувати, тільки передавши абонемент назад вручну.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" style={{ flex: 1, background: 'var(--s1)', border: '1px solid var(--brd)' }} onClick={() => setConfirmStep(false)}>Назад</button>
+            <button className="btn btn-grn" style={{ flex: 1 }} onClick={confirm}>✅ Так, передати</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  )
+}
+
+function searchMembers(members, search, targetId) {
+  const q = search.toLowerCase().trim()
+  if (!q || targetId) return []
+  return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8)
 }
