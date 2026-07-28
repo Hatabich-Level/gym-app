@@ -13,10 +13,37 @@ export function LoadingOverlay({ show }) {
 
 // ── Method pill ───────────────────────────────────────────────────────────────
 export function MethodPill({ method }) {
+  if (method == null) {
+    return <span className="method-pill" style={{ background: 'rgba(245,166,35,.15)', color: 'var(--ylw)' }}>⚠️</span>
+  }
   return (
     <span className={`method-pill ${method === 'card' ? 'pill-card' : 'pill-cash'}`}>
       {method === 'card' ? '💳' : '💵'}
     </span>
+  )
+}
+
+// ── Change calculator (здача готівкою) ──────────────────────────────────────
+// Показуємо тільки коли обрана оплата готівкою і сума до сплати відома.
+export function ChangeCalc({ due }) {
+  const [given, setGiven] = React.useState('')
+  if (!due || due <= 0) return null
+  const g = parseFloat(given) || 0
+  const change = g - due
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 14 }}>
+      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 6 }}>💵 Скільки дав клієнт (щоб порахувати здачу)</div>
+      <input type="number" value={given} onChange={e => setGiven(e.target.value)} placeholder={`напр: ${Math.ceil(due / 50) * 50}`} min={0} />
+      {g > 0 && (
+        change > 0 ? (
+          <div style={{ marginTop: 8, fontSize: 15, color: 'var(--ylw)', fontWeight: 700 }}>💰 Здача: {change} грн</div>
+        ) : change === 0 ? (
+          <div style={{ marginTop: 8, fontSize: 14, color: 'var(--grn)', fontWeight: 600 }}>✅ Точна сума, без здачі</div>
+        ) : (
+          <div style={{ marginTop: 8, fontSize: 13, color: 'var(--red)' }}>Не вистачає {Math.abs(change)} грн</div>
+        )
+      )}
+    </div>
   )
 }
 

@@ -3,7 +3,7 @@ import {
   TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon, getActiveAbon,
   HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning
 } from '../utils'
-import { FRow, Ava, MethodPill } from '../components/UI'
+import { FRow, Ava, MethodPill, ChangeCalc } from '../components/UI'
 
 function MethodToggle({ value, onChange }) {
   return (
@@ -355,10 +355,11 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
                 </div>
               )}
             </div>
+            {method === 'cash' && !useAbon && (
+              <ChangeCalc due={(parseFloat(amount) || 0) + HALL_FEE} />
+            )}
           </div>
         )}
-
-        {/* Оплата — split */}
         {sType === 'split' && (
           <div className="frow">
             <div className="flabel">Оплата</div>
@@ -381,6 +382,9 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
                 </div>
               )}
             </div>
+            {splitMethod === 'cash' && (
+              <ChangeCalc due={(parseFloat(splitAmount) || 0) + SPLIT_HALL_FEE} />
+            )}
           </div>
         )}
 
@@ -652,6 +656,10 @@ function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment,
             💵 <span style={{ color: 'var(--grn)' }}>Каса тренера (60%): <b>{trainerEarning} грн</b></span><br />
             🏦 Залу: <b>{hallEarning} грн</b>
           </div>
+        )}
+
+        {trainerPrice > 0 && method === 'cash' && (
+          <ChangeCalc due={total} />
         )}
 
         {trainerPrice > 0 && role !== 'trainer' && (

@@ -3,7 +3,7 @@ import {
   TODAY, fmtDate, uid, addCalMonths, addDays, daysDiff, abonStatus, getActiveAbon,
   getActiveTrainerAbon, getMemberDebt, STATUS_LABEL, STATUS_TAG, nowTime
 } from '../utils'
-import { Modal, FRow, MethodToggle, MethodPill, ProgressBar, IconBtn } from '../components/UI'
+import { Modal, FRow, MethodToggle, MethodPill, ProgressBar, IconBtn, ChangeCalc } from '../components/UI'
 
 export default function MemberDetail({
   memberId, members, abons, payments, role, uname,
@@ -504,6 +504,7 @@ function AddAbonModal({ memberId, memberName, activeAbon, onSave, onClose }) {
           {toCash && (
             <>
               <MethodToggle value={method} onChange={setMethod} />
+              {method === 'cash' && <ChangeCalc due={parseFloat(paid) || 0} />}
               <FRow label="Дата платежу">
                 <div className="method-toggle">
                   <button className={`method-btn ${cashDate==='today'?'on-cash':''}`} onClick={() => setCashDate('today')}>Сьогодні</button>
@@ -541,6 +542,7 @@ function PayAbonModal({ abon, debt, memberId, memberName, onSave, onClose }) {
     <Modal title="Оплата абонементу" onClose={onClose}>
       <FRow label="Сума (грн)"><input type="number" value={amount} onChange={e => setAmount(e.target.value)} /></FRow>
       <MethodToggle value={method} onChange={setMethod} />
+      {method === 'cash' && <ChangeCalc due={parseFloat(amount) || 0} />}
       <FRow label="Примітка"><input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="необов'язково" /></FRow>
       <button className="btn btn-grn" onClick={save}>💰 Записати оплату</button>
     </Modal>
@@ -587,6 +589,7 @@ function ExtendAbonModal({ abon, memberId, memberName, onSave, onClose }) {
       )}
       <FRow label="Сума (грн)"><input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="500" /></FRow>
       <FRow label="Спосіб оплати"><MethodToggle value={method} onChange={setMethod} /></FRow>
+      {method === 'cash' && <ChangeCalc due={parseFloat(price) || 0} />}
       <button className="btn btn-grn" onClick={save}>🔄 Продовжити</button>
     </Modal>
   )
