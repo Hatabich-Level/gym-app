@@ -301,6 +301,7 @@ export default function MemberDetail({
           abon={displayAbon}
           fromName={mem.name}
           members={members.filter(m => m.id !== memberId)}
+          abons={abons}
           onSave={async (targetMember) => {
             const updated = {
               ...displayAbon,
@@ -308,7 +309,16 @@ export default function MemberDetail({
               memberName: targetMember.name,
               transferLog: [...(displayAbon.transferLog || []), { from: mem.name, to: targetMember.name, date: TODAY }]
             }
-            await pushAbons([updated])
+            // Якщо в одержувача вже є свій активний абонемент — деактивуємо
+            // його (як і при звичайному додаванні нового абонемента), щоб не
+            // виникало 2 "активних" записи одночасно і плутанини з боргом
+            const targetStaleActive = abons.filter(a =>
+              a.memberId === targetMember.id && a.id !== displayAbon.id && a.active && !a.deleted && a.type !== 'trainer'
+            )
+            const toSave = targetStaleActive.length
+              ? [updated, ...targetStaleActive.map(a => ({ ...a, active: false }))]
+              : [updated]
+            await pushAbons(toSave)
             setModal(null)
             onBack()
           }}
@@ -680,13 +690,16 @@ function AddTrainerSessionsModal({ abon, onSave, onClose }) {
 }
 
 // ── Transfer abon to another member ────────────────────────────────────────────
-function TransferAbonModal({ abon, fromName, members, onSave, onClose }) {
+function TransferAbonModal({ abon, fromName, members, abons, onSave, onClose }) {
   const [search, setSearch] = useState('')
   const [targetId, setTargetId] = useState(null)
   const [targetName, setTargetName] = useState('')
   const [confirmStep, setConfirmStep] = useState(false)
 
   const results = searchMembers(members, search, targetId)
+  const targetHasOwnActive = targetId
+    ? abons.some(a => a.memberId === targetId && a.id !== abon.id && a.active && !a.deleted && a.type !== 'trainer')
+    : false
 
   function pick(m) {
     setTargetId(m.id); setTargetName(m.name); setSearch(m.name)
@@ -732,6 +745,9 @@ function TransferAbonModal({ abon, fromName, members, onSave, onClose }) {
           <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r2)', padding: '12px 14px', marginBottom: 16, fontSize: 14, lineHeight: 1.7 }}>
             ⚠️ Точно передати абонемент від <b>{fromName}</b> до <b style={{ color: 'var(--acc)' }}>{targetName}</b>?<br />
             Цю дію можна скасувати, тільки передавши абонемент назад вручну.
+            {targetHasOwnActive && (
+              <><br /><br />⚠️ У <b>{targetName}</b> вже є свій активний абонемент — він буде <b>деактивований</b>, щоб не було двох активних одночасно.</>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" style={{ flex: 1, background: 'var(--s1)', border: '1px solid var(--brd)' }} onClick={() => setConfirmStep(false)}>Назад</button>
