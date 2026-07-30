@@ -324,8 +324,12 @@ app.post('/api/payments', auth, async (req, res) => {
   const p = req.body;
   if (!p || !p.id) return res.status(400).json({ error: 'bad payment' });
   if (p.amount === undefined || p.amount === null) return res.status(400).json({ error: 'amount required' });
-  p.method = p.method === 'card' ? 'card' : 'cash';
-  p.hallMethod = p.hallMethod === 'card' ? 'card' : 'cash';
+  // ВАЖЛИВО: null означає "тренер ще не підтвердив, як гроші йдуть в зал" —
+  // це навмисний стан, і його не можна автоматично перетворювати на 'cash',
+  // інакше адмін ніколи не побачить, що саме треба підтвердити.
+  const normMethod = v => (v === 'card' ? 'card' : v === 'cash' ? 'cash' : null);
+  p.method = normMethod(p.method);
+  p.hallMethod = normMethod(p.hallMethod);
   p.by = req.user.role + (req.user.name ? ':' + req.user.name : '');
   await upsert('payments', [p]);
   res.json({ ok: true });
@@ -662,18 +666,32 @@ app.get('/api/export/:year/:month', auth, async (req, res) => {
     totalCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // ── Окремий аркуш "Касса" — готівка/картка/всього ──────────────────────────
+    // Для занять (kind:'session') рахуємо тільки частку ЗАЛУ (hallEarning за
+    // hallMethod), а не повну суму, яку клієнт віддав тренеру — інакше туди
+    // потрапляє ще й особистий заробіток тренера. Для абонементів тренера
+    // (kind:'trainer_abon') amount вже зберігає тільки частку залу. Непідтверджені
+    // (hallMethod/method == null) платежі в касу поки не рахуємо.
+    function hallAmountOf(p) {
+      if (p.kind === 'session') return p.hallEarning || 0;
+      return p.amount || 0;
+    }
+    function hallMethodOf(p) {
+      if (p.kind === 'session') return p.hallMethod;
+      return p.method;
+    }
     const monthPayments = payments.filter(p => p.date && p.date.slice(0, 7) === monthKey);
-    const cashTotal = monthPayments.filter(p => p.method !== 'card').reduce((s, p) => s + (p.amount || 0), 0);
-    const cardTotal = monthPayments.filter(p => p.method === 'card').reduce((s, p) => s + (p.amount || 0), 0);
+    const confirmedPayments = monthPayments.filter(p => hallMethodOf(p) != null);
+    const cashTotal = confirmedPayments.filter(p => hallMethodOf(p) !== 'card').reduce((s, p) => s + hallAmountOf(p), 0);
+    const cardTotal = confirmedPayments.filter(p => hallMethodOf(p) === 'card').reduce((s, p) => s + hallAmountOf(p), 0);
 
     const wsCash = wb.addWorksheet('Касса ' + sheetName);
     wsCash.getColumn(1).width = 30;
     wsCash.getColumn(2).width = 18;
 
     const cashRows = [
-      ['Готівка', cashTotal],
-      ['Картка', cardTotal],
-      ['Загальна сума', cashTotal + cardTotal],
+      ['Готівка (зал)', cashTotal],
+      ['Картка (зал)', cardTotal],
+      ['Загальна сума (зал)', cashTotal + cardTotal],
     ];
     wsCash.addRow(['Підсумки за ' + sheetName + ' ' + year]).font = { bold: true, size: 13 };
     wsCash.addRow([]);
@@ -685,18 +703,19 @@ app.get('/api/export/:year/:month', auth, async (req, res) => {
     });
 
     wsCash.addRow([]);
-    wsCash.addRow(['Деталі платежів']).font = { bold: true };
-    const hdrRow = wsCash.addRow(['Дата', 'ПІБ', 'Сума', 'Спосіб', 'Тип', 'Хто записав']);
+    wsCash.addRow(['Деталі платежів (частка залу)']).font = { bold: true };
+    const hdrRow = wsCash.addRow(['Дата', 'ПІБ', 'Сума (зал)', 'Спосіб', 'Тип', 'Хто записав']);
     hdrRow.font = { bold: true };
 
     monthPayments
       .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))
       .forEach(p => {
         const mem = members.find(x => x.id === p.memberId);
+        const hm = hallMethodOf(p);
         wsCash.addRow([
-          p.date, p.memberName || (mem ? mem.name : '?'), p.amount,
-          p.method === 'card' ? 'Картка' : 'Готівка',
-          p.kind === 'session' ? 'Заняття' : (p.kind === 'manual_debt' ? 'Борг' : 'Абонемент'),
+          p.date, p.memberName || (mem ? mem.name : '?'), hallAmountOf(p),
+          hm == null ? 'Непідтверджено' : (hm === 'card' ? 'Картка' : 'Готівка'),
+          p.kind === 'session' ? 'Заняття' : (p.kind === 'manual_debt' ? 'Борг' : p.kind === 'trainer_abon' ? 'Абон. тренера' : 'Абонемент'),
           p.by || ''
         ]);
       });
