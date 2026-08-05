@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import {
-  TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon, getActiveAbon,
+  TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon, getActiveAbon, isTrainerAbonExpired,
   HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning
 } from '../utils'
 import { FRow, Ava, MethodPill, ChangeCalc } from '../components/UI'
@@ -41,6 +41,9 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
 
   const sessionDate = dateMode === 'today' ? TODAY : (customDate || TODAY)
   const trainerAbon = clientId ? getActiveTrainerAbon(clientId, abons) : null
+  const trainerAbonExpired = (clientId && !trainerAbon)
+    ? abons.find(a => a.memberId === clientId && a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0 && isTrainerAbonExpired(a))
+    : null
 
   // ── Solo search ───────────────────────────────────────────────────────────────
   const soloResults = useMemo(() => {
@@ -92,7 +95,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
     const per = parseFloat(splitAmount) || 0
     const count = splitClients.length
     const payingCount = splitClients.filter(c => !c.useAbon && !c.isTrainer).length
-    const hallPayingCount = splitClients.filter(c => !c.isTrainer).length
+    const hallPayingCount = splitClients.filter(c => !c.isTrainer && !c.useAbon).length
     const trainerTotal = payingCount * per
     const hallTotal = hallPayingCount * SPLIT_HALL_FEE
     return { per, count, payingCount, hallPayingCount, trainerTotal, hallTotal }
@@ -167,7 +170,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
     })
 
     const payingCount = clientDetails.filter(c => c.paid).length
-    const hallPayingCount = splitClients.filter(c => !c.isTrainer).length
+    const hallPayingCount = splitClients.filter(c => !c.isTrainer && !c.useAbon).length
     const count = splitClients.length
     const trainerTotal = payingCount * perPerson
     const hallTotal = hallPayingCount * SPLIT_HALL_FEE
@@ -250,10 +253,17 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
                 🎫 Є абонемент: залишилось {trainerAbon.sessionsLeft} з {trainerAbon.totalSessions} занять — сума не потрібна
               </div>
             )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--txt2)', marginBottom: 14, cursor: 'pointer' }}>
-              <input type="checkbox" checked={useAbon && !!trainerAbon} onChange={e => trainerAbon && setUseAbon(e.target.checked)} style={{ width: 17, height: 17 }} />
-              🎫 Списати заняття з абонементу тренера
-            </label>
+            {trainerAbonExpired && (
+              <div style={{ background: 'rgba(255,51,102,.08)', border: '1px solid rgba(255,51,102,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--red)' }}>
+                ⛔ <b>Абонемент прострочено</b> — {trainerAbonExpired.sessionsLeft} занять згоріло (не використовувалось понад 30 днів від {fmtDate(trainerAbonExpired.startDate)}). Списати не можна — вкажи ціну разового нижче.
+              </div>
+            )}
+            {trainerAbon && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--txt2)', marginBottom: 14, cursor: 'pointer' }}>
+                <input type="checkbox" checked={useAbon && !!trainerAbon} onChange={e => trainerAbon && setUseAbon(e.target.checked)} style={{ width: 17, height: 17 }} />
+                🎫 Списати заняття з абонементу тренера
+              </label>
+            )}
 
             {!useAbon && (
               <FRow label="Ціна разового (грн)">
@@ -301,6 +311,9 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
               <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 12 }}>
                 {splitClients.map((c, i) => {
                   const ta = (c.id && !c.isTrainer) ? getActiveTrainerAbon(c.id, abons) : null
+                  const taExpired = (c.id && !c.isTrainer && !ta)
+                    ? abons.find(a => a.memberId === c.id && a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0 && isTrainerAbonExpired(a))
+                    : null
                   return (
                     <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--brd)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -314,6 +327,11 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
                           <input type="checkbox" checked={c.useAbon} onChange={e => toggleSplitAbon(i, e.target.checked)} style={{ width: 15, height: 15 }} />
                           🎫 Списати заняття (залишилось {ta.sessionsLeft} з {ta.totalSessions})
                         </label>
+                      )}
+                      {taExpired && (
+                        <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6, marginLeft: 36 }}>
+                          ⛔ Абонемент прострочено (30 днів від {fmtDate(taExpired.startDate)}) — списати не можна, вкажи звичайну ціну
+                        </div>
                       )}
                     </div>
                   )
@@ -382,7 +400,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
                 </div>
               )}
             </div>
-            {splitMethod === 'cash' && (
+            {splitMethod === 'cash' && splitPreview.payingCount > 0 && (
               <ChangeCalc due={(parseFloat(splitAmount) || 0) + SPLIT_HALL_FEE} />
             )}
           </div>
