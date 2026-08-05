@@ -60,8 +60,18 @@ export function getActiveAbon(memberId, abons) {
   return list.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0]
 }
 
+export const TRAINER_ABON_EXPIRY_DAYS = 30
+
+export function isTrainerAbonExpired(a) {
+  if (!a || !a.startDate) return false
+  return TODAY > addDays(a.startDate, TRAINER_ABON_EXPIRY_DAYS)
+}
+
 export function getActiveTrainerAbon(memberId, abons) {
-  return abons.find(a => a.memberId === memberId && a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0) || null
+  return abons.find(a =>
+    a.memberId === memberId && a.type === 'trainer' && !a.deleted &&
+    a.sessionsLeft > 0 && !isTrainerAbonExpired(a)
+  ) || null
 }
 
 export function visitedToday(ab) {

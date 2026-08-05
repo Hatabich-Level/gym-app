@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import {
   TODAY, fmtDate, uid, addCalMonths, addDays, daysDiff, abonStatus, getActiveAbon,
-  getActiveTrainerAbon, getMemberDebt, STATUS_LABEL, STATUS_TAG, nowTime
+  getActiveTrainerAbon, getMemberDebt, STATUS_LABEL, STATUS_TAG, nowTime,
+  isTrainerAbonExpired, TRAINER_ABON_EXPIRY_DAYS
 } from '../utils'
 import { Modal, FRow, MethodToggle, MethodPill, ProgressBar, IconBtn, ChangeCalc } from '../components/UI'
 
@@ -26,6 +27,13 @@ export default function MemberDetail({
   const displayAbon = activeAbon || allAbons[0] || null
   const st = displayAbon ? abonStatus(displayAbon) : null
   const trainerAbon = getActiveTrainerAbon(memberId, abons)
+  // Для відображення картки — навіть якщо абонемент тренера щойно "згорів"
+  // через 30 днів невикористання, покажемо це явно, а не просто мовчки
+  // приховаємо картку (щоб було зрозуміло, чому пропали заняття)
+  const trainerAbonExpiredUnused = !trainerAbon
+    ? abons.find(a => a.memberId === memberId && a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0 && isTrainerAbonExpired(a))
+    : null
+  const trainerAbonDisplay = trainerAbon || trainerAbonExpiredUnused
   const debt = activeAbon ? getMemberDebt(memberId, abons, payments) : 0
 
   // Виявлення забруднених даних: кілька записів з active=true одночасно
@@ -100,29 +108,44 @@ export default function MemberDetail({
       <div style={{ padding: 14 }} className="detail-grid">
         <div className="detail-col-main">
           {/* Trainer abon (заняття) — показуємо окремо, якщо є */}
-          {trainerAbon && (
+          {trainerAbonDisplay && (
             <div className="card">
               <div className="ct">🎫 Абонемент від тренера</div>
+              {trainerAbonExpiredUnused ? (
+                <div style={{ background: 'rgba(255,51,102,.08)', border: '1px solid rgba(255,51,102,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 10, fontSize: 13, color: 'var(--red)', lineHeight: 1.5 }}>
+                  ⚠️ Прострочено — не використано за {TRAINER_ABON_EXPIRY_DAYS} днів від дати покупки ({fmtDate(trainerAbonDisplay.startDate)}). Залишок занять згорів.
+                </div>
+              ) : (() => {
+                const deadline = addDays(trainerAbonDisplay.startDate, TRAINER_ABON_EXPIRY_DAYS)
+                const daysLeft = daysDiff(TODAY, deadline)
+                return daysLeft <= 7 && (
+                  <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 10, fontSize: 13, color: 'var(--ylw)' }}>
+                    ⏳ Згорить через {daysLeft} дн., якщо не використати (до {fmtDate(deadline)})
+                  </div>
+                )
+              })()}
               <div className="irow">
                 <span className="ikey">Залишилось занять</span>
-                <span className="ival" style={{ color: 'var(--grn)', fontWeight: 700 }}>{trainerAbon.sessionsLeft} з {trainerAbon.totalSessions}</span>
+                <span className="ival" style={{ color: trainerAbonExpiredUnused ? 'var(--txt2)' : 'var(--grn)', fontWeight: 700 }}>{trainerAbonDisplay.sessionsLeft} з {trainerAbonDisplay.totalSessions}</span>
               </div>
-              {trainerAbon.price > 0 && (
-                <div className="irow"><span className="ikey">Ціна</span><span className="ival">{trainerAbon.price} грн</span></div>
+              {trainerAbonDisplay.price > 0 && (
+                <div className="irow"><span className="ikey">Ціна</span><span className="ival">{trainerAbonDisplay.price} грн</span></div>
               )}
-              <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(trainerAbon.startDate)}</span></div>
-              {trainerAbon.bonusLog && trainerAbon.bonusLog.length > 0 && (
+              <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(trainerAbonDisplay.startDate)}</span></div>
+              {trainerAbonDisplay.bonusLog && trainerAbonDisplay.bonusLog.length > 0 && (
                 <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--brd)' }}>
-                  {trainerAbon.bonusLog.map((b, i) => (
+                  {trainerAbonDisplay.bonusLog.map((b, i) => (
                     <div key={i} style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 4 }}>
                       ➕ {b.date}: +{b.count} зан. — {b.reason}
                     </div>
                   ))}
                 </div>
               )}
-              <button className="btn-sm btn-acc" style={{ marginTop: 10, width: '100%' }} onClick={() => setModal('addTrainerSessions')}>
-                + Додати заняття (поважна причина)
-              </button>
+              {!trainerAbonExpiredUnused && (
+                <button className="btn-sm btn-acc" style={{ marginTop: 10, width: '100%' }} onClick={() => setModal('addTrainerSessions')}>
+                  + Додати заняття (поважна причина)
+                </button>
+              )}
             </div>
           )}
 
