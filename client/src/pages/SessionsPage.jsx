@@ -147,7 +147,8 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
   async function saveSplit() {
     if (splitClients.length < 2) { alert('Додайте мінімум 2 клієнти для спліту'); return }
     const perPerson = parseFloat(splitAmount) || 0
-    if (!perPerson) { alert('Вкажіть твою суму з кожного'); return }
+    const someonePaysCash = splitClients.some(c => !c.useAbon && !c.isTrainer)
+    if (!perPerson && someonePaysCash) { alert('Вкажіть твою суму з кожного'); return }
 
     const abonsChanged = []
     const clientDetails = splitClients.map(c => {
