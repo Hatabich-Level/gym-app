@@ -365,8 +365,9 @@ function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, o
   const monthVisits = visits.filter(v => v.date.slice(0,7) === TODAY.slice(0,7))
 
   const rem = isMonth && abon.endDate ? daysDiff(TODAY, abon.endDate) : null
-  const totalSpan = isMonth && abon.startDate && abon.endDate ? Math.max(1, daysDiff(abon.startDate, abon.endDate)) : null
-  const usedSpan = isMonth && abon.startDate ? Math.min(totalSpan || 1, Math.max(0, daysDiff(abon.startDate, TODAY))) : null
+  const cycleFrom = abon.cycleStart || abon.startDate
+  const totalSpan = isMonth && cycleFrom && abon.endDate ? Math.max(1, daysDiff(cycleFrom, abon.endDate)) : null
+  const usedSpan = isMonth && cycleFrom ? Math.min(totalSpan || 1, Math.max(0, daysDiff(cycleFrom, TODAY))) : null
   const pct = totalSpan ? Math.round((usedSpan / totalSpan) * 100) : 0
 
   return (
@@ -615,7 +616,7 @@ function ExtendAbonModal({ abon, memberId, memberName, onSave, onClose }) {
   function save() {
     const p = parseFloat(price) || 0
     const updated = abon.type === 'month'
-      ? { ...abon, endDate: newEnd, active: true }
+      ? { ...abon, endDate: newEnd, active: true, cycleStart: curEnd }
       : abon
     let payment = null
     if (p > 0) {
