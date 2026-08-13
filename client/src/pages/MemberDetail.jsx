@@ -265,6 +265,7 @@ export default function MemberDetail({
           memberId={memberId}
           activeAbon={activeAbon}
           memberName={mem.name}
+          by={role + (uname ? ':' + uname : '')}
           onSave={async (ab, payment) => {
             const staleActive = abons.filter(a => a.memberId === memberId && a.active && !a.deleted && a.type !== 'trainer')
             if (staleActive.length) await pushAbons([...staleActive.map(a => ({ ...a, active: false })), ab])
@@ -482,7 +483,7 @@ function EditMemberModal({ member, onSave, onClose }) {
 }
 
 // ── Add new abon ──────────────────────────────────────────────────────────────
-function AddAbonModal({ memberId, memberName, activeAbon, onSave, onClose }) {
+function AddAbonModal({ memberId, memberName, activeAbon, by, onSave, onClose }) {
   const [type, setType] = useState('month')
   const [dur, setDur] = useState(1)
   const [price, setPrice] = useState('')
@@ -507,7 +508,7 @@ function AddAbonModal({ memberId, memberName, activeAbon, onSave, onClose }) {
       active: type === 'visit' ? false : true,
       frozen: false, freezeStart: null,
       extraDays: 0, freezeLog: [],
-      visits: type === 'visit' ? [{ date: startDate || TODAY, time: nowTime() }] : [],
+      visits: type === 'visit' ? [{ date: startDate || TODAY, time: nowTime(), by }] : [],
       ...(activeAbon ? { prevAbonId: activeAbon.id } : {})
     }
     let payment = null

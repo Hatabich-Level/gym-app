@@ -1,739 +1,791 @@
-// ── Спортзал: сервер (Express + PostgreSQL) ──────────────────────────────────
-const express = require('express');
-const crypto  = require('crypto');
-const fs      = require('fs');
-const path    = require('path');
-const { Pool } = require('pg');
-const ExcelJS = require('exceljs');
+import React, { useState } from 'react'
+import {
+  TODAY, fmtDate, uid, addCalMonths, addDays, daysDiff, abonStatus, getActiveAbon,
+  getActiveTrainerAbon, getMemberDebt, STATUS_LABEL, STATUS_TAG, nowTime,
+  isTrainerAbonExpired, TRAINER_ABON_EXPIRY_DAYS
+} from '../utils'
+import { Modal, FRow, MethodToggle, MethodPill, ProgressBar, IconBtn, ChangeCalc } from '../components/UI'
 
-const app  = express();
-const PORT = process.env.PORT || 3000;
+export default function MemberDetail({
+  memberId, members, abons, payments, role, uname,
+  onBack, onSaveMember, onDeleteMember, pushAbons, pushPayment, deletePayment, loading
+}) {
+  const mem = members.find(m => m.id === memberId)
+  const [modal, setModal] = useState(null) // 'edit'|'abon'|'pay'|'extend'|'freeze'
+  const isOwner = role === 'owner'
+  const isAdmin = role === 'owner' || role === 'admin'
 
-// Резервні паролі для самого першого старту (коли таблиця users ще порожня).
-// Після першого входу рекомендується створити власні акаунти і змінити ці паролі.
-const ADMIN_PASSWORD   = process.env.ADMIN_PASSWORD   || 'admin123';
-const TRAINER_PASSWORD = process.env.TRAINER_PASSWORD || 'trener123';
-const SECRET           = process.env.SECRET || 'change-me-secret';
+  if (!mem) return null
 
-if (!process.env.DATABASE_URL) {
-  console.error('❌ Немає DATABASE_URL. Додайте PostgreSQL базу даних.');
-  process.exit(1);
-}
+  const allAbons = abons.filter(a => a.memberId === memberId && a.type !== 'trainer' && !a.deleted)
+    .sort((a,b) => (b.startDate||'').localeCompare(a.startDate||''))
+  const activeAbon = getActiveAbon(memberId, abons)
+  // Для відображення в головній картці беремо активний абонемент, а якщо
+  // такого немає (наприклад, разовий вже "закрився" одразу після
+  // покупки/відвідування) — показуємо останній за датою запис, щоб деталі
+  // (ціна, оплата, час відвідування) не зникали з очей одразу.
+  const displayAbon = activeAbon || allAbons[0] || null
+  const st = displayAbon ? abonStatus(displayAbon) : null
+  const trainerAbon = getActiveTrainerAbon(memberId, abons)
+  // Для відображення картки — навіть якщо абонемент тренера щойно "згорів"
+  // через 30 днів невикористання, покажемо це явно, а не просто мовчки
+  // приховаємо картку (щоб було зрозуміло, чому пропали заняття)
+  const trainerAbonExpiredUnused = !trainerAbon
+    ? abons.find(a => a.memberId === memberId && a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0 && isTrainerAbonExpired(a))
+    : null
+  const trainerAbonDisplay = trainerAbon || trainerAbonExpiredUnused
+  const debt = activeAbon ? getMemberDebt(memberId, abons, payments) : 0
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
-});
+  // Виявлення забруднених даних: кілька записів з active=true одночасно
+  // (могло лишитись зі старих версій). Показуємо найновіший, а решту
+  // пропонуємо деактивувати одним натисканням.
+  const allActiveRaw = abons.filter(a => a.memberId === memberId && a.active && !a.deleted && a.type !== 'trainer')
+  const duplicateActiveAbons = allActiveRaw.filter(a => a.id !== (activeAbon && activeAbon.id))
 
-app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+  // Історія (все, крім запису, що показаний у головній картці)
+  const history = allAbons.filter(a => a.id !== (displayAbon && displayAbon.id))
 
-// SPA fallback — всі не-API маршрути → index.html
-app.get(/^(?!\/api).*$/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+  const memberPays = payments
+    .filter(p => p.memberId === memberId && p.kind !== 'session')
+    .sort((a,b) => (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')))
+    .slice(0, 10)
 
-// ── Password hashing (scrypt, вбудований у Node — без зовнішніх залежностей) ──
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return salt + ':' + hash;
-}
-function verifyPassword(password, stored) {
-  if (!stored || !stored.includes(':')) return false;
-  const [salt, hash] = stored.split(':');
-  const check = crypto.scryptSync(password, salt, 64).toString('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
-  } catch { return false; }
-}
-
-// ── Tokens ────────────────────────────────────────────────────────────────────
-function sign(payload) {
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const sig  = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
-  return body + '.' + sig;
-}
-function verify(token) {
-  if (!token) return null;
-  const [body, sig] = token.split('.');
-  if (!body || !sig) return null;
-  const expect = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
-  try {
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString());
-    if (payload.exp < Date.now()) return null;
-    return payload;
-  } catch { return null; }
-}
-function auth(req, res, next) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
-  const user = verify(token);
-  if (!user) return res.status(401).json({ error: 'unauthorized' });
-  req.user = user;
-  next();
-}
-// Тільки головний адмін (owner)
-function ownerOnly(req, res, next) {
-  if (req.user.role !== 'owner') return res.status(403).json({ error: 'forbidden' });
-  next();
-}
-// Головний адмін АБО адмін (2) — будь-який тип адміністратора
-function anyAdmin(req, res, next) {
-  if (req.user.role !== 'owner' && req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
-  next();
-}
-
-// ── DB init + seed ────────────────────────────────────────────────────────────
-async function initDb() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS members      (id TEXT PRIMARY KEY, data JSONB NOT NULL);
-    CREATE TABLE IF NOT EXISTS abons        (id TEXT PRIMARY KEY, data JSONB NOT NULL);
-    CREATE TABLE IF NOT EXISTS payments     (id TEXT PRIMARY KEY, data JSONB NOT NULL);
-    CREATE TABLE IF NOT EXISTS manual_debts (id TEXT PRIMARY KEY, data JSONB NOT NULL);
-    CREATE TABLE IF NOT EXISTS users         (id TEXT PRIMARY KEY, data JSONB NOT NULL);
-    CREATE TABLE IF NOT EXISTS audit_log     (id TEXT PRIMARY KEY, data JSONB NOT NULL);
-  `);
-
-  // Перший старт: якщо в таблиці users ще нікого немає — засіваємо
-  // головного адміна (owner) і одного тренера зі старих змінних середовища,
-  // щоб вхід працював так само, як і раніше.
-  const { rows } = await pool.query('SELECT id FROM users LIMIT 1');
-  if (!rows.length) {
-    const ownerId   = 'u_owner';
-    const trainerId = 'u_trainer1';
-    await upsert('users', [
-      { id: ownerId,   login: 'admin',   passwordHash: hashPassword(ADMIN_PASSWORD),   role: 'owner',   name: 'Власник',  createdAt: new Date().toISOString() },
-      { id: trainerId, login: 'trainer', passwordHash: hashPassword(TRAINER_PASSWORD), role: 'trainer', name: 'Тренер',   createdAt: new Date().toISOString() },
-    ]);
-    console.log('🌱 Створено стартові акаунти: login "admin" (owner), login "trainer" (trainer). Паролі — як у ADMIN_PASSWORD / TRAINER_PASSWORD. Радимо створити власні акаунти і змінити паролі в Налаштуваннях.');
-  }
-}
-
-// ── Auth API ──────────────────────────────────────────────────────────────────
-app.post('/api/login', async (req, res) => {
-  const { login, password } = req.body || {};
-  if (!login || !password) return res.status(400).json({ error: 'Введіть логін і пароль' });
-
-  const { rows } = await pool.query(
-    "SELECT data FROM users WHERE data->>'login' = $1",
-    [String(login).trim().toLowerCase()]
-  );
-  const user = rows[0] && rows[0].data;
-  if (!user || !verifyPassword(password, user.passwordHash)) {
-    return res.status(401).json({ error: 'Невірний логін або пароль' });
+  async function fixDuplicateAbons() {
+    if (!confirm(`Знайдено ${duplicateActiveAbons.length} застарілих "активних" запис(и/ів). Позначити їх неактивними? Поточний абонемент (${fmtDate(activeAbon?.startDate)}) залишиться без змін.`)) return
+    await pushAbons(duplicateActiveAbons.map(a => ({ ...a, active: false })))
   }
 
-  const token = sign({
-    uid: user.id, role: user.role, name: user.name || '',
-    exp: Date.now() + 1000 * 60 * 60 * 24 * 30
-  });
-  res.json({ token, role: user.role, name: user.name || '', login: user.login, uid: user.id });
-});
+  async function doFreeze(startDate) {
+    const updated = { ...activeAbon, frozen: true, freezeStart: startDate }
+    await pushAbons([updated])
+    setModal(null)
+  }
 
-// Поточний користувач (для перевірки токена після відкриття застосунку)
-app.get('/api/me', auth, (req, res) => {
-  res.json({ role: req.user.role, name: req.user.name || '', uid: req.user.uid });
-});
+  async function doUnfreeze() {
+    const frozenDays = daysDiff(activeAbon.freezeStart, TODAY)
+    const freezeLog = [...(activeAbon.freezeLog || []), { from: activeAbon.freezeStart, to: TODAY, days: frozenDays }]
+    const updated = {
+      ...activeAbon,
+      frozen: false,
+      freezeStart: null,
+      extraDays: (activeAbon.extraDays || 0) + frozenDays,
+      freezeLog,
+      endDate: activeAbon.type === 'month' && activeAbon.endDate ? addDays(activeAbon.endDate, frozenDays) : activeAbon.endDate
+    }
+    await pushAbons([updated])
+  }
 
-// ── Audit log ─────────────────────────────────────────────────────────────────
-async function logAction(req, action, details) {
-  const entry = {
-    id: 'log_' + Date.now().toString(36) + Math.random().toString(36).slice(2),
-    action, details: details || {},
-    by: req.user.name ? req.user.name : req.user.role,
-    role: req.user.role,
-    at: new Date().toISOString()
-  };
-  try { await upsert('audit_log', [entry]); } catch (e) { console.error('audit log error:', e); }
+  // Стирає саме той абонемент, що зараз показаний у картці (displayAbon) —
+  // раніше стирались лише "активні" записи, тож закритий разовий (він уже
+  // active:false) не видалявся взагалі і кнопка не мала жодного ефекту.
+  async function deleteCurrentAbon() {
+    if (!displayAbon) return
+    if (!confirm(`Стерти абонемент клієнта ${mem.name} (${fmtDate(displayAbon.startDate)})? Цю дію не можна скасувати.`)) return
+    await pushAbons([{ ...displayAbon, active: false, deleted: true }])
+  }
+
+  return (
+    <div className="fullscreen detail-view" style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 40 }}>
+      {/* Header */}
+      <div className="mhdr">
+        <button className="back" onClick={onBack}>
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+            <path d="M7 1L1 7l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Назад
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mem.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{mem.phone || ''}</div>
+        </div>
+        {isOwner && (
+          <button className="btn-sm btn-gray" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8 }} onClick={() => setModal('edit')}>
+            ✏️ Редагувати
+          </button>
+        )}
+      </div>
+
+      <div style={{ padding: 14 }} className="detail-grid">
+        <div className="detail-col-main">
+          {/* Trainer abon (заняття) — показуємо окремо, якщо є */}
+          {trainerAbonDisplay && (
+            <div className="card">
+              <div className="ct">🎫 Абонемент від тренера</div>
+              {trainerAbonExpiredUnused ? (
+                <div style={{ background: 'rgba(255,51,102,.08)', border: '1px solid rgba(255,51,102,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 10, fontSize: 13, color: 'var(--red)', lineHeight: 1.5 }}>
+                  ⚠️ Прострочено — не використано за {TRAINER_ABON_EXPIRY_DAYS} днів від дати покупки ({fmtDate(trainerAbonDisplay.startDate)}). Залишок занять згорів.
+                </div>
+              ) : (() => {
+                const deadline = addDays(trainerAbonDisplay.startDate, TRAINER_ABON_EXPIRY_DAYS)
+                const daysLeft = daysDiff(TODAY, deadline)
+                return daysLeft <= 7 && (
+                  <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 10, fontSize: 13, color: 'var(--ylw)' }}>
+                    ⏳ Згорить через {daysLeft} дн., якщо не використати (до {fmtDate(deadline)})
+                  </div>
+                )
+              })()}
+              <div className="irow">
+                <span className="ikey">Залишилось занять</span>
+                <span className="ival" style={{ color: trainerAbonExpiredUnused ? 'var(--txt2)' : 'var(--grn)', fontWeight: 700 }}>{trainerAbonDisplay.sessionsLeft} з {trainerAbonDisplay.totalSessions}</span>
+              </div>
+              {trainerAbonDisplay.price > 0 && (
+                <div className="irow"><span className="ikey">Ціна</span><span className="ival">{trainerAbonDisplay.price} грн</span></div>
+              )}
+              <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(trainerAbonDisplay.startDate)}</span></div>
+              {trainerAbonDisplay.bonusLog && trainerAbonDisplay.bonusLog.length > 0 && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--brd)' }}>
+                  {trainerAbonDisplay.bonusLog.map((b, i) => (
+                    <div key={i} style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 4 }}>
+                      ➕ {b.date}: +{b.count} зан. — {b.reason}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!trainerAbonExpiredUnused && (
+                <button className="btn-sm btn-acc" style={{ marginTop: 10, width: '100%' }} onClick={() => setModal('addTrainerSessions')}>
+                  + Додати заняття (поважна причина)
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Freeze banner */}
+          {activeAbon && activeAbon.frozen && (
+            <div className="frozen-banner">
+              ❄️ Заморожено {daysDiff(activeAbon.freezeStart, TODAY)} дн. тому (з {fmtDate(activeAbon.freezeStart)}). Дні будуть додані до абонементу після розморозки.
+            </div>
+          )}
+
+          {/* Data-integrity warning: duplicate active abons */}
+          {duplicateActiveAbons.length > 0 && isAdmin && (
+            <div className="card" style={{ borderColor: 'rgba(255,51,102,.35)', background: 'rgba(255,51,102,.06)' }}>
+              <div style={{ fontSize: 13, color: 'var(--txt)', marginBottom: 10, lineHeight: 1.5 }}>
+                ⚠️ У клієнта знайдено {duplicateActiveAbons.length} застарілих запис(и/ів), позначених як "активні" одночасно з поточним абонементом. Показується найновіший, але радимо це полагодити.
+              </div>
+              <button className="btn btn-red btn-sm" onClick={fixDuplicateAbons}>🔧 Полагодити дублікати</button>
+            </div>
+          )}
+
+          {/* Active abon card */}
+          {displayAbon ? (
+            <ActiveAbonCard
+              abon={displayAbon} status={st} role={role} debt={debt}
+              onPay={() => setModal('pay')}
+              onExtend={() => setModal('extend')}
+              onFreeze={() => setModal('freeze')}
+              onUnfreeze={doUnfreeze}
+              onDeleteAbon={deleteCurrentAbon}
+              onTransfer={() => setModal('transfer')}
+            />
+          ) : (
+            isAdmin && (
+              <div className="card" style={{ textAlign: 'center', padding: 28 }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>🎫</div>
+                <div style={{ fontSize: 15, marginBottom: 16, color: 'var(--txt2)' }}>Немає активного абонементу</div>
+                <button className="btn btn-acc" onClick={() => setModal('abon')}>+ Додати абонемент</button>
+              </div>
+            )
+          )}
+
+          {isAdmin && displayAbon && (
+            <button className="btn btn-gray" style={{ marginBottom: 12 }} onClick={() => setModal('abon')}>
+              + Новий абонемент
+            </button>
+          )}
+        </div>
+
+        <div className="detail-col-side">
+          {/* Visit history */}
+          {displayAbon && (displayAbon.visits || []).length > 0 && (
+            <div className="card">
+              <div className="ct">Відвідування</div>
+              {[...displayAbon.visits].reverse().slice(0, 15).map((v, i) => (
+                <div key={i} className="vitem">
+                  <span>{fmtDate(v.date)}</span>
+                  <span style={{ color: 'var(--txt2)' }}>{v.time}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Payments tied to abon (history) */}
+          {memberPays.length > 0 && (
+            <div className="card">
+              <div className="ct">Платежі</div>
+              {memberPays.map(p => (
+                <div key={p.id} className="payment-item">
+                  <div>
+                    <div>{fmtDate(p.date)}{p.time ? ' ' + p.time : ''}</div>
+                    <div style={{ color: 'var(--txt2)', fontSize: 11 }}>{p.note || 'Абонемент'}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <MethodPill method={p.method} />
+                    <span style={{ color: 'var(--grn)', fontWeight: 600 }}>+{p.amount} грн</span>
+                    {isAdmin && (
+                      <IconBtn onClick={() => { if (confirm('Видалити платіж?')) deletePayment(p.id) }} title="Видалити">✕</IconBtn>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Abon history */}
+          {history.length > 0 && (
+            <div className="card">
+              <div className="ct">Історія абонементів</div>
+              {history.map(ab => <AbonRow key={ab.id} abon={ab} />)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="danger-zone" style={{ padding: '0 14px' }}>
+        {/* Danger zone */}
+        {isOwner && (
+          <button className="btn btn-red" onClick={() => {
+            if (confirm(`Видалити клієнта ${mem.name}?\n\nВсі абонементи будуть видалені.`)) {
+              onDeleteMember(memberId)
+              onBack()
+            }
+          }}>🗑 Видалити клієнта</button>
+        )}
+      </div>
+
+      {/* Modals */}
+      {modal === 'edit' && (
+        <EditMemberModal
+          member={mem}
+          onSave={data => { onSaveMember(memberId, data); setModal(null) }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'abon' && (
+        <AddAbonModal
+          memberId={memberId}
+          activeAbon={activeAbon}
+          memberName={mem.name}
+          by={role + (uname ? ':' + uname : '')}
+          onSave={async (ab, payment) => {
+            const staleActive = abons.filter(a => a.memberId === memberId && a.active && !a.deleted && a.type !== 'trainer')
+            if (staleActive.length) await pushAbons([...staleActive.map(a => ({ ...a, active: false })), ab])
+            else await pushAbons([ab])
+            if (payment) await pushPayment(payment)
+            setModal(null)
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'pay' && activeAbon && (
+        <PayAbonModal
+          abon={activeAbon}
+          debt={debt}
+          memberId={memberId}
+          memberName={mem.name}
+          onSave={async (p, updatedAbon) => {
+            await pushPayment(p)
+            if (updatedAbon) await pushAbons([updatedAbon])
+            setModal(null)
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'extend' && displayAbon && (
+        <ExtendAbonModal
+          abon={displayAbon}
+          memberId={memberId}
+          memberName={mem.name}
+          onSave={async (updatedAbon, payment) => {
+            await pushAbons([updatedAbon])
+            if (payment) await pushPayment(payment)
+            setModal(null)
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'freeze' && activeAbon && (
+        <FreezeModal
+          abon={activeAbon}
+          onSave={doFreeze}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'addTrainerSessions' && trainerAbon && (
+        <AddTrainerSessionsModal
+          abon={trainerAbon}
+          onSave={async (updatedAbon) => {
+            await pushAbons([updatedAbon])
+            setModal(null)
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'transfer' && displayAbon && (
+        <TransferAbonModal
+          abon={displayAbon}
+          fromName={mem.name}
+          members={members.filter(m => m.id !== memberId)}
+          abons={abons}
+          onSave={async (targetMember) => {
+            const updated = {
+              ...displayAbon,
+              memberId: targetMember.id,
+              memberName: targetMember.name,
+              transferLog: [...(displayAbon.transferLog || []), { from: mem.name, to: targetMember.name, date: TODAY }]
+            }
+            // Якщо в одержувача вже є свій активний абонемент — деактивуємо
+            // його (як і при звичайному додаванні нового абонемента), щоб не
+            // виникало 2 "активних" записи одночасно і плутанини з боргом
+            const targetStaleActive = abons.filter(a =>
+              a.memberId === targetMember.id && a.id !== displayAbon.id && a.active && !a.deleted && a.type !== 'trainer'
+            )
+            const toSave = targetStaleActive.length
+              ? [updated, ...targetStaleActive.map(a => ({ ...a, active: false }))]
+              : [updated]
+            await pushAbons(toSave)
+            setModal(null)
+            onBack()
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
+    </div>
+  )
 }
 
-// ── State ─────────────────────────────────────────────────────────────────────
-app.get('/api/state', auth, async (req, res) => {
-  const [m, a, p, md] = await Promise.all([
-    pool.query('SELECT data FROM members'),
-    pool.query('SELECT data FROM abons'),
-    pool.query('SELECT data FROM payments'),
-    pool.query('SELECT data FROM manual_debts'),
-  ]);
+// ── Active abon card ──────────────────────────────────────────────────────────
+function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, onUnfreeze, onDeleteAbon, onTransfer }) {
+  const isAdmin = role === 'owner' || role === 'admin'
+  const st = status
+  const tagClass = STATUS_TAG[st] || 'tag-gray'
+  const isMonth = abon.type === 'month'
+  const isVisit = abon.type === 'visit'
 
-  const out = {
-    role: req.user.role,
-    name: req.user.name || '',
-    members:      m.rows.map(r => r.data),
-    abons:        a.rows.map(r => r.data),
-    payments:     p.rows.map(r => r.data),
-    manualDebts:  md.rows.map(r => r.data),
-  };
+  const visits = abon.visits || []
+  const todayVisit = visits.find(v => v.date === TODAY)
+  const monthVisits = visits.filter(v => v.date.slice(0,7) === TODAY.slice(0,7))
 
-  // Лише власник бачить список акаунтів (без хешів паролів) і журнал дій
-  if (req.user.role === 'owner') {
-    const [u, log] = await Promise.all([
-      pool.query('SELECT data FROM users'),
-      pool.query('SELECT data FROM audit_log ORDER BY data->>\'at\' DESC LIMIT 300'),
-    ]);
-    out.users = u.rows.map(r => { const { passwordHash, ...rest } = r.data; return rest; });
-    out.auditLog = log.rows.map(r => r.data);
-  }
+  const rem = isMonth && abon.endDate ? daysDiff(TODAY, abon.endDate) : null
+  const cycleFrom = abon.cycleStart || abon.startDate
+  const totalSpan = isMonth && cycleFrom && abon.endDate ? Math.max(1, daysDiff(cycleFrom, abon.endDate)) : null
+  const usedSpan = isMonth && cycleFrom ? Math.min(totalSpan || 1, Math.max(0, daysDiff(cycleFrom, TODAY))) : null
+  const pct = totalSpan ? Math.round((usedSpan / totalSpan) * 100) : 0
 
-  res.json(out);
-});
+  return (
+    <div className="card" style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{ fontWeight: 600, fontSize: 15 }}>
+          {isMonth ? '📅 Місячний безліміт' : isVisit ? '🎟 Разовий' : 'Абонемент'}
+        </div>
+        <span className={`ai-tag ${tagClass}`}>{STATUS_LABEL[st] || st}</span>
+      </div>
 
-// ── Upsert helpers ────────────────────────────────────────────────────────────
-async function upsert(table, items) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    for (const item of items) {
-      await client.query(
-        `INSERT INTO ${table} (id, data) VALUES ($1, $2)
-         ON CONFLICT (id) DO UPDATE SET data = $2`,
-        [String(item.id), item]
-      );
-    }
-    await client.query('COMMIT');
-  } catch (e) { await client.query('ROLLBACK'); throw e; }
-  finally { client.release(); }
+      {isMonth && (
+        <>
+          <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(abon.startDate)}</span></div>
+          <div className="irow"><span className="ikey">Закінчення</span><span className="ival">{fmtDate(abon.endDate)}</span></div>
+          {abon.extraDays > 0 && (
+            <div className="irow"><span className="ikey">Додано (заморозка)</span><span className="ival" style={{ color: '#88aaff' }}>+{abon.extraDays} дн.</span></div>
+          )}
+          {(st === 'active' || st === 'ending') && rem !== null && (
+            <>
+              <div className="irow">
+                <span className="ikey">Залишилось</span>
+                <span className="ival" style={{ color: rem <= 3 ? 'var(--ylw)' : 'var(--grn)' }}>{rem} дн.</span>
+              </div>
+              <ProgressBar value={usedSpan} max={totalSpan} color={rem <= 3 ? 'var(--ylw)' : 'var(--acc)'} />
+            </>
+          )}
+          <div className="irow" style={{ paddingTop: 10 }}>
+            <span className="ikey">Відвідувань цього місяця</span>
+            <span className="ival">{monthVisits.length}</span>
+          </div>
+        </>
+      )}
+
+      {abon.price > 0 && (
+        <div className="irow">
+          <span className="ikey">Вартість</span>
+          <span className="ival">{abon.price} грн</span>
+        </div>
+      )}
+      {debt > 0 ? (
+        <div className="irow">
+          <span className="ikey">Борг</span>
+          <span className="ival" style={{ color: 'var(--ylw)' }}>{debt} грн</span>
+        </div>
+      ) : abon.price > 0 && (
+        <div className="irow">
+          <span className="ikey">Статус оплати</span>
+          <span className="ival" style={{ color: 'var(--grn)' }}>✅ Оплачено повністю</span>
+        </div>
+      )}
+
+      {todayVisit && (
+        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--grn)' }}>✅ Відмічено сьогодні о {todayVisit.time}</div>
+      )}
+
+      {isAdmin && (
+        <div className="grid2" style={{ marginTop: 10, marginBottom: 0 }}>
+          {debt > 0 && (
+            <button className="btn btn-grn btn-sm" onClick={onPay}>💰 Оплата</button>
+          )}
+          {isMonth && (
+            <button className="btn btn-ylw btn-sm" onClick={onExtend}>🔄 Продовжити</button>
+          )}
+          {!abon.frozen && st !== 'expired' && (
+            <button className="btn btn-ice btn-sm" onClick={onFreeze}>❄️ Заморозити</button>
+          )}
+          {abon.frozen && (
+            <button className="btn btn-acc btn-sm" onClick={onUnfreeze}>▶️ Розморозити</button>
+          )}
+          <button className="btn btn-gray btn-sm" onClick={onTransfer}>👤 Передати іншому</button>
+          <button className="btn btn-red btn-sm" onClick={onDeleteAbon}>🗑️ Стерти абон.</button>
+        </div>
+      )}
+    </div>
+  )
 }
 
-// Клієнти: створення дозволено owner+admin; редагування існуючого (зміна
-// імені/телефону) — лише owner. Тренер не може ні створювати, ні редагувати.
-app.post('/api/members/bulk', auth, anyAdmin, async (req, res) => {
-  const items = (req.body && req.body.items) || [];
-  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items required' });
+function AbonRow({ abon }) {
+  const st = abonStatus(abon)
+  return (
+    <div className="irow">
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 500 }}>
+          {abon.type === 'month' ? '📅 ' : '🎟 '}
+          {fmtDate(abon.startDate)}{abon.endDate ? ' → ' + fmtDate(abon.endDate) : ''}
+        </div>
+      </div>
+      <span className={`ai-tag ${STATUS_TAG[st] || 'tag-gray'}`}>{STATUS_LABEL[st] || '—'}</span>
+    </div>
+  )
+}
 
-  if (req.user.role !== 'owner') {
-    // admin (не owner): дозволяємо лише створення нових клієнтів,
-    // не редагування вже існуючих імен/телефонів.
-    const ids = items.map(it => String(it.id));
-    const { rows } = await pool.query('SELECT id, data FROM members WHERE id = ANY($1)', [ids]);
-    const existing = new Map(rows.map(r => [r.id, r.data]));
-    for (const it of items) {
-      const prev = existing.get(String(it.id));
-      if (prev && (prev.name !== it.name || prev.phone !== it.phone)) {
-        return res.status(403).json({ error: 'Редагувати дані клієнта може лише головний адмін' });
+// ── Edit member ───────────────────────────────────────────────────────────────
+function EditMemberModal({ member, onSave, onClose }) {
+  const [name, setName] = useState(member.name || '')
+  const [phone, setPhone] = useState(member.phone || '')
+  const [isTrainer, setIsTrainer] = useState(!!member.isTrainer)
+  return (
+    <Modal title="Редагувати клієнта" onClose={onClose}>
+      <FRow label="ПІБ"><input type="text" value={name} onChange={e => setName(e.target.value)} /></FRow>
+      <FRow label="Телефон"><input type="text" value={phone} onChange={e => setPhone(e.target.value)} /></FRow>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--txt2)', marginBottom: 14, cursor: 'pointer' }}>
+        <input type="checkbox" checked={isTrainer} onChange={e => setIsTrainer(e.target.checked)} style={{ width: 17, height: 17 }} />
+        👔 Це тренер
+      </label>
+      <button className="btn btn-grn" onClick={() => { if (!name.trim()) return alert('Введіть ПІБ'); onSave({ name: name.trim(), phone: phone.trim(), isTrainer }) }}>
+        💾 Зберегти
+      </button>
+    </Modal>
+  )
+}
+
+// ── Add new abon ──────────────────────────────────────────────────────────────
+function AddAbonModal({ memberId, memberName, activeAbon, by, onSave, onClose }) {
+  const [type, setType] = useState('month')
+  const [dur, setDur] = useState(1)
+  const [price, setPrice] = useState('')
+  const [paid, setPaid] = useState('')
+  const [startDate, setStartDate] = useState(TODAY)
+  const [method, setMethod] = useState('cash')
+  const [toCash, setToCash] = useState(true)
+  const [cashDate, setCashDate] = useState('today')
+
+  const endDate = type === 'month' ? addCalMonths(startDate || TODAY, dur) : null
+
+  async function save() {
+    const p = parseFloat(price) || 0
+    const pa = parseFloat(paid) || 0
+    const abonId = uid()
+    const ab = {
+      id: abonId, memberId,
+      type, startDate: startDate || TODAY,
+      endDate, price: p, paid: pa,
+      // Разовий вважається одразу використаним (клієнт прийшов і оплатив
+      // "тут і зараз"), тож він одразу закривається — не лишається "активним"
+      active: type === 'visit' ? false : true,
+      frozen: false, freezeStart: null,
+      extraDays: 0, freezeLog: [],
+      visits: type === 'visit' ? [{ date: startDate || TODAY, time: nowTime(), by }] : [],
+      ...(activeAbon ? { prevAbonId: activeAbon.id } : {})
+    }
+    let payment = null
+    if (pa > 0 && toCash) {
+      payment = {
+        id: uid(), kind: 'abon', memberId, memberName,
+        abonId,
+        date: cashDate === 'today' ? TODAY : startDate,
+        time: nowTime(), amount: pa, method
       }
     }
-  } else {
-    // owner: логуємо, якщо це справді зміна (а не створення нового клієнта)
-    const ids = items.map(it => String(it.id));
-    const { rows } = await pool.query('SELECT id, data FROM members WHERE id = ANY($1)', [ids]);
-    const existing = new Map(rows.map(r => [r.id, r.data]));
-    for (const it of items) {
-      const prev = existing.get(String(it.id));
-      if (prev && (prev.name !== it.name || prev.phone !== it.phone)) {
-        await logAction(req, 'member_edit', { from: { name: prev.name, phone: prev.phone }, to: { name: it.name, phone: it.phone } });
-      }
-    }
+    await onSave(ab, payment)
   }
 
-  await upsert('members', items);
-  res.json({ ok: true });
-});
+  return (
+    <Modal title="Новий абонемент" onClose={onClose}>
+      <FRow label="Тип">
+        <div className="method-toggle">
+          {[['month','📅 Місячний'],['visit','🎟 Разовий']].map(([v,l]) => (
+            <button key={v} className={`method-btn ${type===v?'on-card':''}`} onClick={() => setType(v)}>{l}</button>
+          ))}
+        </div>
+      </FRow>
+      {type === 'month' && (
+        <FRow label="Тривалість (міс)">
+          <select value={dur} onChange={e => setDur(+e.target.value)}>
+            {[1,2,3,6,12].map(n => <option key={n} value={n}>{n} міс</option>)}
+          </select>
+        </FRow>
+      )}
+      <FRow label="Дата початку">
+        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+      </FRow>
+      {type === 'month' && endDate && (
+        <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 14 }}>
+          Кінець: <b style={{ color: 'var(--txt)' }}>{fmtDate(endDate)}</b>
+        </div>
+      )}
+      <FRow label="Вартість (грн)"><input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" /></FRow>
+      <FRow label="Оплачено (грн)"><input type="number" value={paid} onChange={e => setPaid(e.target.value)} placeholder="0" /></FRow>
+      {parseFloat(paid) > 0 && (
+        <>
+          <FRow label="Записати в касу">
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14 }}>
+              <input type="checkbox" checked={toCash} onChange={e => setToCash(e.target.checked)} />
+              Так, записати платіж
+            </label>
+          </FRow>
+          {toCash && (
+            <>
+              <MethodToggle value={method} onChange={setMethod} />
+              {method === 'cash' && <ChangeCalc due={parseFloat(paid) || 0} />}
+              <FRow label="Дата платежу">
+                <div className="method-toggle">
+                  <button className={`method-btn ${cashDate==='today'?'on-cash':''}`} onClick={() => setCashDate('today')}>Сьогодні</button>
+                  <button className={`method-btn ${cashDate==='start'?'on-cash':''}`} onClick={() => setCashDate('start')}>Дата початку</button>
+                </div>
+              </FRow>
+            </>
+          )}
+        </>
+      )}
+      <button className="btn btn-grn" onClick={save}>💾 Зберегти абонемент</button>
+    </Modal>
+  )
+}
 
-// Видалити декілька клієнтів — тільки адмін (має бути ДО /:id)
-app.delete('/api/members/delete-many', auth, ownerOnly, async (req, res) => {
-  const ids = (req.body && req.body.ids) || [];
-  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids required' });
+// ── Pay (purchase) abon debt ──────────────────────────────────────────────────
+function PayAbonModal({ abon, debt, memberId, memberName, onSave, onClose }) {
+  const [amount, setAmount] = useState(String(debt || ''))
+  const [method, setMethod] = useState('cash')
+  const [note, setNote] = useState('')
 
-  const { rows: toDelete } = await pool.query('SELECT data FROM members WHERE id = ANY($1)', [ids]);
-  const names = toDelete.map(r => r.data.name).filter(Boolean);
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    for (const id of ids) {
-      await client.query('DELETE FROM members WHERE id = $1', [id]);
-      await client.query("DELETE FROM abons WHERE data->>'memberId' = $1", [id]);
+  function save() {
+    const a = parseFloat(amount) || 0
+    if (!a) { alert('Вкажіть суму'); return }
+    const p = {
+      id: uid(), kind: 'abon', memberId, memberName,
+      date: TODAY, time: nowTime(), amount: a, method, note,
+      abonId: abon.id
     }
-    await client.query('COMMIT');
-  } catch (e) { await client.query('ROLLBACK'); throw e; }
-  finally { client.release(); }
-
-  await logAction(req, 'members_delete_many', { names, count: ids.length });
-  res.json({ ok: true });
-});
-
-// Видалити одного клієнта — тільки адмін
-app.delete('/api/members/:id', auth, ownerOnly, async (req, res) => {
-  const id = req.params.id;
-  const { rows } = await pool.query('SELECT data FROM members WHERE id = $1', [id]);
-  const name = rows[0] && rows[0].data.name;
-  await pool.query('DELETE FROM members WHERE id = $1', [id]);
-  await pool.query("DELETE FROM abons WHERE data->>'memberId' = $1", [id]);
-  await logAction(req, 'member_delete', { name });
-  res.json({ ok: true });
-});
-
-// Абонементи: продаж/заморозка/продовження/стирання — owner+admin.
-// Тренер може лише відмічати відвідування (додавати запис у visits, і
-// закривати разовий абонемент при цьому) — решта змін йому заборонена.
-app.post('/api/abons/bulk', auth, async (req, res) => {
-  const items = (req.body && req.body.items) || [];
-  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items required' });
-
-  if (req.user.role === 'trainer') {
-    const ids = items.map(it => String(it.id));
-    const { rows } = await pool.query('SELECT id, data FROM abons WHERE id = ANY($1)', [ids]);
-    const existing = new Map(rows.map(r => [r.id, r.data]));
-    for (const it of items) {
-      const prev = existing.get(String(it.id));
-      if (!prev) {
-        // Тренер може створювати тільки абонементи type==='trainer' (свої пакети занять)
-        if (it.type !== 'trainer') {
-          return res.status(403).json({ error: 'Тренер не може створювати абонементи залу' });
-        }
-        continue; // дозволяємо створення тренерського абонементу
-      }
-      // Для існуючих абонементів:
-      // - type==='trainer': дозволено змінювати visits, sessionsLeft, active
-      // - інші: дозволено змінювати тільки visits і active (відмітка відвідування)
-      const allowedDiffKeys = it.type === 'trainer'
-        ? new Set(['visits', 'sessionsLeft', 'active'])
-        : new Set(['visits', 'active']);
-      for (const key of Object.keys(it)) {
-        const same = JSON.stringify(it[key]) === JSON.stringify(prev[key]);
-        if (!same && !allowedDiffKeys.has(key)) {
-          return res.status(403).json({ error: 'Тренер може лише відмічати відвідування' });
-        }
-      }
-    }
-  } else if (req.user.role !== 'owner' && req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'forbidden' });
-  } else {
-    // owner/admin: логуємо стирання абонементу (active true -> false поза чекіном)
-    const ids = items.map(it => String(it.id))
-    const { rows } = await pool.query('SELECT id, data FROM abons WHERE id = ANY($1)', [ids])
-    const existing = new Map(rows.map(r => [r.id, r.data]))
-    for (const it of items) {
-      const prev = existing.get(String(it.id))
-      if (prev && prev.active && it.active === false) {
-        const { rows: memRows } = await pool.query('SELECT data FROM members WHERE id = $1', [it.memberId])
-        const memberName = memRows[0] && memRows[0].data.name
-        await logAction(req, 'abon_deactivate', { memberName, abonType: it.type })
-      }
-    }
+    const updated = { ...abon, paid: (abon.paid||0) + a }
+    onSave(p, updated)
   }
 
-  await upsert('abons', items);
-  res.json({ ok: true });
-});
+  return (
+    <Modal title="Оплата абонементу" onClose={onClose}>
+      <FRow label="Сума (грн)"><input type="number" value={amount} onChange={e => setAmount(e.target.value)} /></FRow>
+      <MethodToggle value={method} onChange={setMethod} />
+      {method === 'cash' && <ChangeCalc due={parseFloat(amount) || 0} />}
+      <FRow label="Примітка"><input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="необов'язково" /></FRow>
+      <button className="btn btn-grn" onClick={save}>💰 Записати оплату</button>
+    </Modal>
+  )
+}
 
-// Платежі (включно з заняттями тренера). Тільки додавання.
-app.post('/api/payments', auth, async (req, res) => {
-  const p = req.body;
-  if (!p || !p.id) return res.status(400).json({ error: 'bad payment' });
-  if (p.amount === undefined || p.amount === null) return res.status(400).json({ error: 'amount required' });
-  // ВАЖЛИВО: null означає "тренер ще не підтвердив, як гроші йдуть в зал" —
-  // це навмисний стан, і його не можна автоматично перетворювати на 'cash',
-  // інакше адмін ніколи не побачить, що саме треба підтвердити.
-  const normMethod = v => (v === 'card' ? 'card' : v === 'cash' ? 'cash' : null);
-  p.method = normMethod(p.method);
-  p.hallMethod = normMethod(p.hallMethod);
-  p.by = req.user.role + (req.user.name ? ':' + req.user.name : '');
-  await upsert('payments', [p]);
-  res.json({ ok: true });
-});
+// ── Extend abon ───────────────────────────────────────────────────────────────
+function ExtendAbonModal({ abon, memberId, memberName, onSave, onClose }) {
+  const [dur, setDur] = useState(1)
+  const [price, setPrice] = useState('')
+  const [method, setMethod] = useState('cash')
 
-// Скинути абонементи — тільки адмін
-app.post('/api/abons/reset', auth, ownerOnly, async (req, res) => {
-  await pool.query('DELETE FROM abons');
-  await logAction(req, 'reset_abons', {});
-  res.json({ ok: true });
-});
+  const curEnd = abon.endDate && abon.endDate >= TODAY ? abon.endDate : TODAY
+  const newEnd = abon.type === 'month' ? addCalMonths(curEnd, dur) : null
 
-// Скинути касу — тільки адмін
-app.post('/api/payments/reset', auth, ownerOnly, async (req, res) => {
-  await pool.query('DELETE FROM payments');
-  await logAction(req, 'reset_payments', {});
-  res.json({ ok: true });
-});
-
-// Скинути все — тільки адмін
-app.post('/api/reset/all', auth, ownerOnly, async (req, res) => {
-  await pool.query('DELETE FROM abons');
-  await pool.query('DELETE FROM payments');
-  await pool.query('DELETE FROM members');
-  await logAction(req, 'reset_all', {});
-  res.json({ ok: true });
-});
-
-// Видалення платежу — тільки адмін
-app.delete('/api/payments/:id', auth, anyAdmin, async (req, res) => {
-  const { rows } = await pool.query('SELECT data FROM payments WHERE id = $1', [req.params.id]);
-  const p = rows[0] && rows[0].data;
-  await pool.query('DELETE FROM payments WHERE id = $1', [req.params.id]);
-  if (p) await logAction(req, 'payment_delete', { memberName: p.memberName, amount: p.amount, date: p.date });
-  res.json({ ok: true });
-});
-
-// ── Ручні борги ───────────────────────────────────────────────────────────────
-
-// Створити або оновити боржника
-app.post('/api/manual-debts', auth, anyAdmin, async (req, res) => {
-  const d = req.body;
-  if (!d || !d.id || !d.name) return res.status(400).json({ error: 'Потрібно id і name' });
-  d.createdBy = req.user.role + (req.user.name ? ':' + req.user.name : '');
-  await upsert('manual_debts', [d]);
-  res.json({ ok: true });
-});
-
-// Записати часткову/повну оплату боргу (зменшує remaining)
-app.post('/api/manual-debts/:id/pay', auth, anyAdmin, async (req, res) => {
-  const { rows } = await pool.query('SELECT data FROM manual_debts WHERE id = $1', [req.params.id]);
-  if (!rows.length) return res.status(404).json({ error: 'Не знайдено' });
-  const d = rows[0].data;
-  const amount = parseFloat(req.body.amount) || 0;
-  const method = req.body.method === 'card' ? 'card' : 'cash';
-  const note   = (req.body.note || '').slice(0, 200);
-  if (amount <= 0) return res.status(400).json({ error: 'Сума має бути більше 0' });
-
-  d.remaining = Math.max(0, (d.remaining || 0) - amount);
-  d.payments  = d.payments || [];
-  d.payments.push({
-    date: new Date().toISOString().slice(0, 10),
-    time: new Date().toTimeString().slice(0, 5),
-    amount, method, note,
-    by: req.user.role + (req.user.name ? ':' + req.user.name : '')
-  });
-
-  await upsert('manual_debts', [d]);
-
-  // також пишемо в payments для каси
-  const p = {
-    id: 'md_' + Date.now().toString(36) + Math.random().toString(36).slice(2),
-    kind: 'manual_debt',
-    manualDebtId: d.id,
-    memberName: d.name,
-    date: new Date().toISOString().slice(0, 10),
-    time: new Date().toTimeString().slice(0, 5),
-    amount, method,
-    note: (note ? note + ' · ' : '') + 'борг: ' + d.name,
-    by: req.user.role + (req.user.name ? ':' + req.user.name : '')
-  };
-  await upsert('payments', [p]);
-
-  res.json({ ok: true, remaining: d.remaining });
-});
-
-// Видалити боржника — тільки адмін
-app.delete('/api/manual-debts/:id', auth, anyAdmin, async (req, res) => {
-  await pool.query('DELETE FROM manual_debts WHERE id = $1', [req.params.id]);
-  res.json({ ok: true });
-});
-
-// ── Керування акаунтами (тільки головний адмін / owner) ────────────────────────
-
-// Список акаунтів — вже передається через /api/state для owner, але лишаємо
-// окремий маршрут для зручності/повторного запиту.
-app.get('/api/users', auth, ownerOnly, async (req, res) => {
-  const { rows } = await pool.query('SELECT data FROM users');
-  res.json(rows.map(r => { const { passwordHash, ...rest } = r.data; return rest; }));
-});
-
-// Створити новий акаунт (admin або trainer; owner можна створити лише вручну в базі)
-app.post('/api/users', auth, ownerOnly, async (req, res) => {
-  const { login, password, name, role } = req.body || {};
-  if (!login || !password || !role) return res.status(400).json({ error: 'Потрібно логін, пароль і роль' });
-  if (!['admin', 'trainer'].includes(role)) return res.status(400).json({ error: 'Роль має бути admin або trainer' });
-  if (password.length < 4) return res.status(400).json({ error: 'Пароль має бути не менше 4 символів' });
-
-  const loginNorm = String(login).trim().toLowerCase();
-  const { rows } = await pool.query("SELECT id FROM users WHERE data->>'login' = $1", [loginNorm]);
-  if (rows.length) return res.status(400).json({ error: 'Такий логін вже існує' });
-
-  const user = {
-    id: 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2),
-    login: loginNorm,
-    passwordHash: hashPassword(password),
-    role, name: (name || '').slice(0, 40),
-    createdAt: new Date().toISOString()
-  };
-  await upsert('users', [user]);
-  await logAction(req, 'user_create', { login: loginNorm, role });
-
-  const { passwordHash, ...safe } = user;
-  res.json(safe);
-});
-
-// Змінити пароль акаунта (свій або будь-чий — лише owner)
-app.post('/api/users/:id/password', auth, ownerOnly, async (req, res) => {
-  const { password } = req.body || {};
-  if (!password || password.length < 4) return res.status(400).json({ error: 'Пароль має бути не менше 4 символів' });
-  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.params.id]);
-  if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
-  const user = rows[0].data;
-  user.passwordHash = hashPassword(password);
-  await upsert('users', [user]);
-  await logAction(req, 'user_password_change', { login: user.login });
-  res.json({ ok: true });
-});
-
-// Видалити акаунт — не можна видалити власний і не можна видалити останнього owner'а
-app.delete('/api/users/:id', auth, ownerOnly, async (req, res) => {
-  if (req.params.id === req.user.uid) return res.status(400).json({ error: 'Не можна видалити власний акаунт' });
-  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.params.id]);
-  if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
-  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
-  await logAction(req, 'user_delete', { login: rows[0].data.login });
-  res.json({ ok: true });
-});
-
-// ── Експорт в Excel (формат оригінального журналу) ─────────────────────────────
-
-const MONTH_NAMES = ['Січ','Лют','Бер','Кві','Тра','Черв','Лип','Серп','Вер','Жов','Лис','Груд'];
-const COL_SHIFT = 'FFFFC000'; // жовтогарячий — день, коли хтось був на зміні (адмін або тренер)
-
-app.get('/api/export/:year/:month', auth, async (req, res) => {
-  try {
-    const year  = parseInt(req.params.year, 10);
-    const month = parseInt(req.params.month, 10); // 1-12
-    if (!year || !month || month < 1 || month > 12) {
-      return res.status(400).json({ error: 'Невірний рік або місяць' });
+  function save() {
+    const p = parseFloat(price) || 0
+    const updated = abon.type === 'month'
+      ? { ...abon, endDate: newEnd, active: true, cycleStart: curEnd }
+      : abon
+    let payment = null
+    if (p > 0) {
+      payment = { id: uid(), kind: 'abon', memberId, memberName, abonId: abon.id, date: TODAY, time: nowTime(), amount: p, method, note: `продовження ${dur} міс.` }
     }
-
-    const [m, a, p] = await Promise.all([
-      pool.query('SELECT data FROM members'),
-      pool.query('SELECT data FROM abons'),
-      pool.query('SELECT data FROM payments'),
-    ]);
-    const members  = m.rows.map(r => r.data);
-    const abons    = a.rows.map(r => r.data);
-    const payments = p.rows.map(r => r.data);
-
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const monthKey = year + '-' + String(month).padStart(2, '0');
-
-    // мапа: memberId -> { day -> { time, amount } }
-    const byMember = new Map();
-    const getEntry = (memberId) => {
-      if (!byMember.has(memberId)) byMember.set(memberId, {});
-      return byMember.get(memberId);
-    };
-
-    // дні, коли була будь-яка активність (хтось — адмін чи тренер — був на зміні)
-    const activeDays = new Set();
-
-    // відвідування (час приходу)
-    abons.forEach(ab => {
-      if (!ab.memberId) return;
-      (ab.visits || []).forEach(v => {
-        if (!v.date || v.date.slice(0, 7) !== monthKey) return;
-        const day = parseInt(v.date.slice(8, 10), 10);
-        const entry = getEntry(ab.memberId);
-        entry[day] = entry[day] || {};
-        entry[day].time = (v.time || '').replace(':', ' ');
-        activeDays.add(day);
-      });
-    });
-
-    // оплати (сума за день)
-    payments.forEach(p => {
-      if (!p.memberId || !p.date || p.date.slice(0, 7) !== monthKey) return;
-      const day = parseInt(p.date.slice(8, 10), 10);
-      const entry = getEntry(p.memberId);
-      entry[day] = entry[day] || {};
-      entry[day].amount = (entry[day].amount || 0) + (p.amount || 0);
-      activeDays.add(day);
-    });
-
-    // всі клієнти з бази, відсортовані по номеру
-    const activeMembers = members.slice().sort((x, y) => (x.num || 0) - (y.num || 0));
-
-    const wb = new ExcelJS.Workbook();
-    const sheetName = MONTH_NAMES[month - 1];
-    const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', xSplit: 2, ySplit: 3 }] });
-
-    const SUM_COL = 3 + daysInMonth * 2;
-
-    // Рядок 1: назва місяця + місце для сум по днях
-    ws.mergeCells(1, 1, 1, 2);
-    const titleCell = ws.getCell(1, 1);
-    titleCell.value = sheetName + ' ' + year;
-    titleCell.font = { name: 'Calibri', size: 13, bold: true };
-    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    // Рядок 2-3: заголовки
-    ws.mergeCells(2, 1, 3, 1);
-    ws.mergeCells(2, 2, 3, 2);
-    const numHdr = ws.getCell(2, 1); numHdr.value = '№'; numHdr.font = { name: 'Calibri', bold: true }; numHdr.alignment = { horizontal: 'center', vertical: 'middle' };
-    const nameHdr = ws.getCell(2, 2); nameHdr.value = 'ПІБ'; nameHdr.font = { name: 'Calibri', bold: true }; nameHdr.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    for (let d = 1; d <= daysInMonth; d++) {
-      const colH = 3 + (d - 1) * 2;
-      const colP = colH + 1;
-      const onShift = activeDays.has(d);
-      const bg = onShift ? COL_SHIFT : null;
-
-      ws.mergeCells(2, colH, 2, colP);
-      const dayHdr = ws.getCell(2, colH);
-      dayHdr.value = d;
-      dayHdr.font = { name: 'Calibri', bold: true };
-      dayHdr.alignment = { horizontal: 'center', vertical: 'middle' };
-      if (bg) dayHdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-
-
-      const timeHdr = ws.getCell(3, colH);
-      timeHdr.value = 'час';
-      timeHdr.font = { name: 'Calibri' };
-      timeHdr.alignment = { horizontal: 'center', vertical: 'middle' };
-      if (bg) timeHdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-
-      const payHdr = ws.getCell(3, colP);
-      payHdr.value = 'опл/+';
-      payHdr.font = { name: 'Calibri' };
-      payHdr.alignment = { horizontal: 'center', vertical: 'middle' };
-
-      ws.getColumn(colH).width = 6;
-      ws.getColumn(colP).width = 6;
-    }
-
-    ws.mergeCells(2, SUM_COL, 3, SUM_COL);
-    const sumHdr = ws.getCell(2, SUM_COL);
-    sumHdr.value = 'Сума';
-    sumHdr.font = { name: 'Calibri', bold: true };
-    sumHdr.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    ws.getColumn(1).width = 5.5;
-    ws.getColumn(2).width = 27.5;
-    ws.getColumn(SUM_COL).width = 8;
-
-    // Рядки клієнтів
-    const dayTotals = {};
-    for (let d = 1; d <= daysInMonth; d++) dayTotals[d] = 0;
-
-    activeMembers.forEach((mem, i) => {
-      const row = 4 + i;
-      const numCell = ws.getCell(row, 1);
-      numCell.value = mem.num || (i + 1);
-      numCell.font = { name: 'Calibri' };
-      numCell.alignment = { horizontal: 'center', vertical: 'middle' };
-
-      const nameCell = ws.getCell(row, 2);
-      nameCell.value = mem.name || '';
-      nameCell.font = { name: 'Calibri' };
-      nameCell.alignment = { horizontal: 'left', vertical: 'middle' };
-
-      const entry = byMember.get(mem.id) || {};
-      let clientTotal = 0;
-
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dayData = entry[d];
-        if (!dayData) continue;
-        const colH = 3 + (d - 1) * 2;
-        const colP = colH + 1;
-        const bg = activeDays.has(d) ? COL_SHIFT : null;
-
-        if (dayData.time) {
-          const timeCell = ws.getCell(row, colH);
-          timeCell.value = dayData.time;
-          timeCell.font = { name: 'Calibri' };
-          timeCell.alignment = { horizontal: 'center', vertical: 'middle' };
-          if (bg) timeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-        }
-
-        if (dayData.amount) {
-          const amtCell = ws.getCell(row, colP);
-          amtCell.value = dayData.amount;
-          amtCell.font = { name: 'Calibri' };
-          amtCell.alignment = { horizontal: 'center', vertical: 'middle' };
-          clientTotal += dayData.amount;
-          dayTotals[d] += dayData.amount;
-        }
-      }
-
-      if (clientTotal > 0) {
-        const sumCell = ws.getCell(row, SUM_COL);
-        sumCell.value = clientTotal;
-        sumCell.font = { name: 'Calibri', bold: true };
-        sumCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      }
-    });
-
-    // Рядок 1: суми по днях + загальна сума місяця
-    let totalMonth = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const colP = 3 + (d - 1) * 2 + 1;
-      const cell = ws.getCell(1, colP);
-      cell.value = dayTotals[d] || 0;
-      cell.font = { name: 'Calibri' };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      totalMonth += dayTotals[d];
-    }
-    const totalCell = ws.getCell(1, SUM_COL);
-    totalCell.value = totalMonth;
-    totalCell.font = { name: 'Calibri', bold: true };
-    totalCell.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    // ── Окремий аркуш "Касса" — готівка/картка/всього ──────────────────────────
-    // Для занять (kind:'session') рахуємо тільки частку ЗАЛУ (hallEarning за
-    // hallMethod), а не повну суму, яку клієнт віддав тренеру — інакше туди
-    // потрапляє ще й особистий заробіток тренера. Для абонементів тренера
-    // (kind:'trainer_abon') amount вже зберігає тільки частку залу. Непідтверджені
-    // (hallMethod/method == null) платежі в касу поки не рахуємо.
-    function hallAmountOf(p) {
-      if (p.kind === 'session') return p.hallEarning || 0;
-      return p.amount || 0;
-    }
-    function hallMethodOf(p) {
-      if (p.kind === 'session') return p.hallMethod;
-      return p.method;
-    }
-    const monthPayments = payments.filter(p => p.date && p.date.slice(0, 7) === monthKey);
-    const confirmedPayments = monthPayments.filter(p => hallMethodOf(p) != null);
-    const cashTotal = confirmedPayments.filter(p => hallMethodOf(p) !== 'card').reduce((s, p) => s + hallAmountOf(p), 0);
-    const cardTotal = confirmedPayments.filter(p => hallMethodOf(p) === 'card').reduce((s, p) => s + hallAmountOf(p), 0);
-
-    const wsCash = wb.addWorksheet('Касса ' + sheetName);
-    wsCash.getColumn(1).width = 30;
-    wsCash.getColumn(2).width = 18;
-
-    const cashRows = [
-      ['Готівка (зал)', cashTotal],
-      ['Картка (зал)', cardTotal],
-      ['Загальна сума (зал)', cashTotal + cardTotal],
-    ];
-    wsCash.addRow(['Підсумки за ' + sheetName + ' ' + year]).font = { bold: true, size: 13 };
-    wsCash.addRow([]);
-    cashRows.forEach(r => {
-      const row = wsCash.addRow(r);
-      row.getCell(1).font = { name: 'Calibri', bold: true };
-      row.getCell(2).font = { name: 'Calibri' };
-      row.getCell(2).alignment = { horizontal: 'right' };
-    });
-
-    wsCash.addRow([]);
-    wsCash.addRow(['Деталі платежів (частка залу)']).font = { bold: true };
-    const hdrRow = wsCash.addRow(['Дата', 'ПІБ', 'Сума (зал)', 'Спосіб', 'Тип', 'Хто записав']);
-    hdrRow.font = { bold: true };
-
-    monthPayments
-      .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))
-      .forEach(p => {
-        const mem = members.find(x => x.id === p.memberId);
-        const hm = hallMethodOf(p);
-        wsCash.addRow([
-          p.date, p.memberName || (mem ? mem.name : '?'), hallAmountOf(p),
-          hm == null ? 'Непідтверджено' : (hm === 'card' ? 'Картка' : 'Готівка'),
-          p.kind === 'session' ? 'Заняття' : (p.kind === 'manual_debt' ? 'Борг' : p.kind === 'trainer_abon' ? 'Абон. тренера' : 'Абонемент'),
-          p.by || ''
-        ]);
-      });
-
-    const fileName = sheetName + '_' + year + '.xlsx';
-    const fileNameEncoded = encodeURIComponent(fileName);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', "attachment; filename=\"export.xlsx\"; filename*=UTF-8''" + fileNameEncoded);
-    await wb.xlsx.write(res);
-    res.end();
-  } catch (e) {
-    console.error('Export error:', e);
-    res.status(500).json({ error: 'Помилка експорту: ' + e.message });
+    onSave(updated, payment)
   }
-});
 
-app.get('/healthz', (req, res) => res.send('ok'));
+  return (
+    <Modal title="Продовжити абонемент" onClose={onClose}>
+      {abon.type === 'month' && (
+        <>
+          <FRow label="Поточний абонемент до">
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{fmtDate(curEnd)}</div>
+          </FRow>
+          <FRow label="Продовжити на (міс)">
+            <select value={dur} onChange={e => setDur(+e.target.value)}>
+              {[1,2,3].map(n => <option key={n} value={n}>{n} міс</option>)}
+            </select>
+          </FRow>
+          <div style={{ fontSize: 13, color: 'var(--grn)', marginBottom: 14 }}>
+            📅 Новий кінець: <b>{fmtDate(newEnd)}</b>{price ? ' · ' + price + ' грн' : ''}
+          </div>
+        </>
+      )}
+      <FRow label="Сума (грн)"><input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="500" /></FRow>
+      <FRow label="Спосіб оплати"><MethodToggle value={method} onChange={setMethod} /></FRow>
+      {method === 'cash' && <ChangeCalc due={parseFloat(price) || 0} />}
+      <button className="btn btn-grn" onClick={save}>🔄 Продовжити</button>
+    </Modal>
+  )
+}
 
-initDb()
-  .then(() => app.listen(PORT, () => console.log('🏋️ Сервер запущено на порту ' + PORT)))
-  .catch(e => { console.error('DB init error:', e); process.exit(1); });
+// ── Freeze ────────────────────────────────────────────────────────────────────
+function FreezeModal({ abon, onSave, onClose }) {
+  const [startDate, setStartDate] = useState(TODAY)
+  const min = abon.startDate || undefined
+
+  function save() {
+    if (!startDate) { alert('Вкажіть дату початку заморозки'); return }
+    if (startDate > TODAY) { alert('Дата не може бути в майбутньому'); return }
+    onSave(startDate)
+  }
+
+  return (
+    <Modal title="❄️ Заморозити абонемент" onClose={onClose}>
+      <div className="card">
+        <div style={{ fontSize: 14, color: 'var(--txt2)', marginBottom: 14, lineHeight: 1.6 }}>
+          Кінець заморозки визначиться після розморозки. Всі дні додадуться до абонементу автоматично.
+        </div>
+        <FRow label="Початок заморозки">
+          <input type="date" value={startDate} max={TODAY} min={min} onChange={e => setStartDate(e.target.value)} />
+        </FRow>
+        <button className="btn btn-ice" onClick={save}>❄️ Заморозити</button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Add trainer sessions (поважна причина) ────────────────────────────────────
+function AddTrainerSessionsModal({ abon, onSave, onClose }) {
+  const [count, setCount] = useState(1)
+  const [reason, setReason] = useState('')
+
+  function save() {
+    const n = parseInt(count) || 0
+    if (n <= 0) { alert('Вкажіть кількість занять (більше 0)'); return }
+    if (!reason.trim()) { alert('Вкажіть причину'); return }
+    const bonusLog = [...(abon.bonusLog || []), { date: TODAY, count: n, reason: reason.trim() }]
+    const updated = {
+      ...abon,
+      sessionsLeft: abon.sessionsLeft + n,
+      totalSessions: abon.totalSessions + n,
+      bonusLog
+    }
+    onSave(updated)
+  }
+
+  return (
+    <Modal title="➕ Додати заняття тренера" onClose={onClose}>
+      <div className="card">
+        <div style={{ fontSize: 14, color: 'var(--txt2)', marginBottom: 14, lineHeight: 1.6 }}>
+          Зараз залишилось <b>{abon.sessionsLeft}</b> з <b>{abon.totalSessions}</b> занять. Додай додаткові заняття клієнту за поважної причини (компенсація, вибачення тощо) — без оплати.
+        </div>
+        <FRow label="Кількість занять">
+          <input type="number" value={count} onChange={e => setCount(e.target.value)} min={1} />
+        </FRow>
+        <FRow label="Причина">
+          <input type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder="напр: тренер запізнився / хвороба тренера" />
+        </FRow>
+        <button className="btn btn-acc" onClick={save}>💾 Додати заняття</button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Transfer abon to another member ────────────────────────────────────────────
+function TransferAbonModal({ abon, fromName, members, abons, onSave, onClose }) {
+  const [search, setSearch] = useState('')
+  const [targetId, setTargetId] = useState(null)
+  const [targetName, setTargetName] = useState('')
+  const [confirmStep, setConfirmStep] = useState(false)
+
+  const results = searchMembers(members, search, targetId)
+  const targetHasOwnActive = targetId
+    ? abons.some(a => a.memberId === targetId && a.id !== abon.id && a.active && !a.deleted && a.type !== 'trainer')
+    : false
+
+  function pick(m) {
+    setTargetId(m.id); setTargetName(m.name); setSearch(m.name)
+  }
+
+  function proceed() {
+    if (!targetId) { alert('Виберіть клієнта, якому передати абонемент'); return }
+    setConfirmStep(true)
+  }
+
+  function confirm() {
+    onSave({ id: targetId, name: targetName })
+  }
+
+  return (
+    <Modal title="👤 Передати абонемент іншому клієнту" onClose={onClose}>
+      {!confirmStep ? (
+        <>
+          <div style={{ fontSize: 13, color: 'var(--txt2)', marginBottom: 14, lineHeight: 1.6 }}>
+            Абонемент клієнта <b style={{ color: 'var(--txt)' }}>{fromName}</b> (залишок днів/занять, історія відвідувань) повністю перейде іншому клієнту. У <b style={{ color: 'var(--txt)' }}>{fromName}</b> цей абонемент більше не показуватиметься.
+          </div>
+          <FRow label="Кому передати">
+            <input
+              type="search" placeholder="Пошук клієнта..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); if (targetId) { setTargetId(null); setTargetName('') } }}
+            />
+          </FRow>
+          {results.length > 0 && (
+            <div style={{ background: 'var(--s1)', borderRadius: 'var(--r)', border: '1px solid var(--brd)', padding: '0 12px', marginBottom: 14 }}>
+              {results.map(m => (
+                <div key={m.id} className="mi" onClick={() => pick(m)}>
+                  <div className="mi-info"><div className="mi-name" style={{ fontSize: 14 }}>{m.name}</div></div>
+                  <span style={{ color: 'var(--acc)', fontSize: 12 }}>Вибрати</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button className="btn btn-gray" onClick={proceed}>Далі</button>
+        </>
+      ) : (
+        <>
+          <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r2)', padding: '12px 14px', marginBottom: 16, fontSize: 14, lineHeight: 1.7 }}>
+            ⚠️ Точно передати абонемент від <b>{fromName}</b> до <b style={{ color: 'var(--acc)' }}>{targetName}</b>?<br />
+            Цю дію можна скасувати, тільки передавши абонемент назад вручну.
+            {targetHasOwnActive && (
+              <><br /><br />⚠️ У <b>{targetName}</b> вже є свій активний абонемент — він буде <b>деактивований</b>, щоб не було двох активних одночасно.</>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" style={{ flex: 1, background: 'var(--s1)', border: '1px solid var(--brd)' }} onClick={() => setConfirmStep(false)}>Назад</button>
+            <button className="btn btn-grn" style={{ flex: 1 }} onClick={confirm}>✅ Так, передати</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  )
+}
+
+function searchMembers(members, search, targetId) {
+  const q = search.toLowerCase().trim()
+  if (!q || targetId) return []
+  return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8)
+}

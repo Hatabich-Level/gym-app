@@ -115,7 +115,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
       const updated = {
         ...trainerAbon,
         sessionsLeft: trainerAbon.sessionsLeft - 1,
-        visits: [...(trainerAbon.visits || []), { date: sessionDate, time: nowTime() }]
+        visits: [...(trainerAbon.visits || []), { date: sessionDate, time: nowTime(), by: role + (uname ? ':' + uname : '') }]
       }
       abonsChanged.push(updated)
       trainerAbonId = trainerAbon.id
@@ -153,7 +153,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
     const abonsChanged = []
     const clientDetails = splitClients.map(c => {
       if (c.isTrainer) {
-        return { name: c.name, paid: false, isTrainer: true, trainerAbonId: null }
+        return { id: c.id || null, name: c.name, paid: false, isTrainer: true, trainerAbonId: null }
       }
       if (c.useAbon && c.id) {
         const ta = getActiveTrainerAbon(c.id, abons)
@@ -161,13 +161,13 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
           const updated = {
             ...ta,
             sessionsLeft: ta.sessionsLeft - 1,
-            visits: [...(ta.visits || []), { date: sessionDate, time: nowTime() }]
+            visits: [...(ta.visits || []), { date: sessionDate, time: nowTime(), by: role + (uname ? ':' + uname : '') }]
           }
           abonsChanged.push(updated)
-          return { name: c.name, paid: false, trainerAbonId: ta.id }
+          return { id: c.id, name: c.name, paid: false, trainerAbonId: ta.id }
         }
       }
-      return { name: c.name, paid: true, trainerAbonId: null }
+      return { id: c.id || null, name: c.name, paid: true, trainerAbonId: null }
     })
 
     const payingCount = clientDetails.filter(c => c.paid).length

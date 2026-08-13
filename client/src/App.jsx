@@ -6,7 +6,7 @@ import MemberDetail from './pages/MemberDetail'
 import CheckinPage from './pages/CheckinPage'
 import SessionsPage from './pages/SessionsPage'
 import FinancePage from './pages/FinancePage'
-import { LoadingOverlay, ReminderBanner, Tabs } from './components/UI'
+import { LoadingOverlay, ReminderBanner, Tabs, Modal, FRow } from './components/UI'
 import { useStore } from './hooks/useStore'
 import { uid, abonStatus, getActiveAbon, TODAY } from './utils'
 
@@ -253,6 +253,7 @@ export default function App() {
               abons={store.abons}
               payments={store.payments}
               role={role}
+              uname={uname}
               pushAbons={store.pushAbons}
               pushPayment={store.pushPayment}
             />
@@ -288,7 +289,7 @@ export default function App() {
             <SettingsPage
               onReset={store.load} isOwner={isOwner}
               users={store.users} auditLog={store.auditLog}
-              createUser={store.createUser} deleteUser={store.deleteUser} changeUserPassword={store.changeUserPassword}
+              createUser={store.createUser} deleteUser={store.deleteUser} changeUserPassword={store.changeUserPassword} updateUserColor={store.updateUserColor}
               currentUid={auth.uid}
             />
           )}
@@ -352,7 +353,7 @@ function NewMemberModal({ onSave, onClose }) {
 }
 
 // ── Settings page ─────────────────────────────────────────────────────────────
-function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, currentUid }) {
+function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, currentUid }) {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('accounts')
 
@@ -402,7 +403,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
       )}
 
       {isOwner && tab === 'accounts' && (
-        <AccountsTab users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} currentUid={currentUid} />
+        <AccountsTab users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} updateUserColor={updateUserColor} currentUid={currentUid} />
       )}
 
       {isOwner && tab === 'log' && <AuditLogTab auditLog={auditLog} />}
@@ -429,17 +430,28 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
 function AccountsTab({ users, createUser, deleteUser, changeUserPassword, currentUid }) {
   const [showAdd, setShowAdd] = useState(false)
   const [pwdFor, setPwdFor] = useState(null) // user id, для зміни пароля
+  const [colorFor, setColorFor] = useState(null) // user id, для зміни кольору
 
   const ROLE_LABEL = { owner: '👑 Головний адмін', admin: '🛠 Адмін', trainer: '🏋️ Тренер' }
 
   return (
     <div className="card">
       <div className="ct">Акаунти ({(users||[]).length})</div>
+      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 12, lineHeight: 1.5 }}>
+        🎨 Колір акаунта використовується в експорті табеля — стовпець "час" за день фарбується кольором того, хто того дня вносив записи.
+      </div>
       {(users||[]).map(u => (
         <div key={u.id} className="irow">
-          <div>
-            <div style={{ fontWeight: 500 }}>{u.name || u.login} <span style={{ color: 'var(--txt2)', fontSize: 12 }}>@{u.login}</span></div>
-            <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{ROLE_LABEL[u.role] || u.role}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              title="Змінити колір"
+              onClick={() => setColorFor(u.id)}
+              style={{ width: 22, height: 22, borderRadius: '50%', background: u.color || '#FFC000', border: '2px solid var(--brd)', cursor: updateUserColor ? 'pointer' : 'default', flexShrink: 0 }}
+            />
+            <div>
+              <div style={{ fontWeight: 500 }}>{u.name || u.login} <span style={{ color: 'var(--txt2)', fontSize: 12 }}>@{u.login}</span></div>
+              <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{ROLE_LABEL[u.role] || u.role}</div>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn-sm" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8, padding: '6px 10px' }} onClick={() => setPwdFor(u.id)}>🔑</button>
@@ -456,7 +468,35 @@ function AccountsTab({ users, createUser, deleteUser, changeUserPassword, curren
 
       {showAdd && <AddUserModal onSave={async (data) => { await createUser(data); setShowAdd(false) }} onClose={() => setShowAdd(false)} />}
       {pwdFor && <ChangePasswordModal onSave={async (pwd) => { await changeUserPassword(pwdFor, pwd); setPwdFor(null) }} onClose={() => setPwdFor(null)} />}
+      {colorFor && updateUserColor && (
+        <ColorPickerModal
+          initial={(users.find(u => u.id === colorFor) || {}).color || '#FFC000'}
+          onSave={async (color) => { await updateUserColor(colorFor, color); setColorFor(null) }}
+          onClose={() => setColorFor(null)}
+        />
+      )}
     </div>
+  )
+}
+
+function ColorPickerModal({ initial, onSave, onClose }) {
+  const [color, setColor] = useState(initial)
+  const presets = ['#FFC000', '#5B9BD5', '#ED7D31', '#70AD47', '#FF3366', '#7C5DF5', '#A5A5A5']
+  return (
+    <Modal title="🎨 Колір акаунта" onClose={onClose}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+        {presets.map(c => (
+          <button
+            key={c} onClick={() => setColor(c)}
+            style={{ width: 36, height: 36, borderRadius: '50%', background: c, border: color === c ? '3px solid var(--txt)' : '2px solid var(--brd)', cursor: 'pointer' }}
+          />
+        ))}
+      </div>
+      <FRow label="Або вибери довільний колір">
+        <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: '100%', height: 44, padding: 4, cursor: 'pointer' }} />
+      </FRow>
+      <button className="btn btn-grn" onClick={() => onSave(color)}>💾 Зберегти колір</button>
+    </Modal>
   )
 }
 
@@ -465,15 +505,17 @@ function AddUserModal({ onSave, onClose }) {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState('admin')
+  const [color, setColor] = useState('#FFC000')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const presets = ['#FFC000', '#5B9BD5', '#ED7D31', '#70AD47', '#FF3366', '#7C5DF5', '#A5A5A5']
 
   async function save() {
     if (!login.trim() || !password) { setError('Заповніть логін і пароль'); return }
     if (password.length < 4) { setError('Пароль має бути не менше 4 символів'); return }
     setSaving(true); setError('')
     try {
-      await onSave({ login: login.trim(), password, name: name.trim(), role })
+      await onSave({ login: login.trim(), password, name: name.trim(), role, color })
     } catch (e) {
       setError(e.message)
     } finally { setSaving(false) }
@@ -493,6 +535,17 @@ function AddUserModal({ onSave, onClose }) {
         <div className="frow"><div className="flabel">Логін</div><input type="text" value={login} onChange={e => setLogin(e.target.value)} placeholder="напр: admin2" autoComplete="off" /></div>
         <div className="frow"><div className="flabel">Пароль</div><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="мінімум 4 символи" autoComplete="new-password" /></div>
         <div className="frow"><div className="flabel">Ім'я (відображається)</div><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="напр: Олена" /></div>
+        <div className="frow">
+          <div className="flabel">🎨 Колір (для табеля)</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {presets.map(c => (
+              <button
+                key={c} onClick={() => setColor(c)}
+                style={{ width: 32, height: 32, borderRadius: '50%', background: c, border: color === c ? '3px solid var(--txt)' : '2px solid var(--brd)', cursor: 'pointer' }}
+              />
+            ))}
+          </div>
+        </div>
         {error && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
         <button className="btn btn-grn" onClick={save} disabled={saving}>{saving ? 'Збереження...' : '💾 Створити акаунт'}</button>
       </div>

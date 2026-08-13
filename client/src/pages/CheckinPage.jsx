@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { TODAY, fmtDate, nowTime, abonStatus, getActiveAbon, getActiveTrainerAbon, visitedTodayAny, STATUS_LABEL, STATUS_TAG } from '../utils'
 import { Ava, StatusTag } from '../components/UI'
 
-export default function CheckinPage({ members, abons, payments, role, pushAbons, pushPayment }) {
+export default function CheckinPage({ members, abons, payments, role, uname, pushAbons, pushPayment }) {
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(null)
 
@@ -37,9 +37,10 @@ export default function CheckinPage({ members, abons, payments, role, pushAbons,
 
   async function doCheckin() {
     if (!selectedAbon || !canCheckin()) return
+    const by = role + (uname ? ':' + uname : '')
     const updated = {
       ...selectedAbon,
-      visits: [...(selectedAbon.visits||[]), { date: TODAY, time: nowTime() }]
+      visits: [...(selectedAbon.visits||[]), { date: TODAY, time: nowTime(), by }]
     }
     // Разовий абонемент закривається одразу після одного відвідування —
     // саме так в оригіналі: жодного платежу тут не створюється, бо оплата

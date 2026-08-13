@@ -138,6 +138,14 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
+  const updateUserColor = useCallback(async (id, color) => {
+    setLoading(true)
+    try {
+      await api('/users/' + id + '/color', 'POST', { color })
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, color } : u))
+    } finally { setLoading(false) }
+  }, [])
+
   const changeUserPassword = useCallback(async (id, password) => {
     setLoading(true)
     try {
@@ -150,7 +158,7 @@ export function useStore() {
     load, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,
-    createUser, deleteUser, changeUserPassword,
+    createUser, deleteUser, changeUserPassword, updateUserColor,
     setAbons, setMembers
   }
 }
