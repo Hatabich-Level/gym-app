@@ -427,7 +427,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
 }
 
 // ── Accounts management (owner only) ───────────────────────────────────────────
-function AccountsTab({ users, createUser, deleteUser, changeUserPassword, currentUid }) {
+function AccountsTab({ users, createUser, deleteUser, changeUserPassword, updateUserColor, currentUid }) {
   const [showAdd, setShowAdd] = useState(false)
   const [pwdFor, setPwdFor] = useState(null) // user id, для зміни пароля
   const [colorFor, setColorFor] = useState(null) // user id, для зміни кольору
