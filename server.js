@@ -433,7 +433,7 @@ app.get('/api/users', auth, ownerOnly, async (req, res) => {
 
 // Створити новий акаунт (admin або trainer; owner можна створити лише вручну в базі)
 app.post('/api/users', auth, ownerOnly, async (req, res) => {
-  const { login, password, name, role } = req.body || {};
+  const { login, password, name, role, color } = req.body || {};
   if (!login || !password || !role) return res.status(400).json({ error: 'Потрібно логін, пароль і роль' });
   if (!['admin', 'trainer'].includes(role)) return res.status(400).json({ error: 'Роль має бути admin або trainer' });
   if (password.length < 4) return res.status(400).json({ error: 'Пароль має бути не менше 4 символів' });
@@ -447,6 +447,7 @@ app.post('/api/users', auth, ownerOnly, async (req, res) => {
     login: loginNorm,
     passwordHash: hashPassword(password),
     role, name: (name || '').slice(0, 40),
+    color: (color && /^#[0-9A-Fa-f]{6}$/.test(color)) ? color : '#FFC000',
     createdAt: new Date().toISOString()
   };
   await upsert('users', [user]);
@@ -454,6 +455,18 @@ app.post('/api/users', auth, ownerOnly, async (req, res) => {
 
   const { passwordHash, ...safe } = user;
   res.json(safe);
+});
+
+// Змінити колір акаунта (для позначення "хто на зміні" в експорті табеля)
+app.post('/api/users/:id/color', auth, ownerOnly, async (req, res) => {
+  const { color } = req.body || {};
+  if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) return res.status(400).json({ error: 'Некоректний колір (формат #RRGGBB)' });
+  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
+  const user = rows[0].data;
+  user.color = color;
+  await upsert('users', [user]);
+  res.json({ ok: true, color });
 });
 
 // Змінити пароль акаунта (свій або будь-чий — лише owner)
