@@ -729,18 +729,24 @@ app.get('/api/export/:year/:month', auth, async (req, res) => {
       let clientTotal = 0;
 
       for (let d = 1; d <= daysInMonth; d++) {
-        const dayData = entry[d];
-        if (!dayData) continue;
         const colH = 3 + (d - 1) * 2;
         const colP = colH + 1;
         const bg = dayColor[d] || null;
+
+        // Колір "хто на зміні" заливає ВСЮ колонку "час" за цей день —
+        // навіть для клієнтів без жодного запису того дня
+        if (bg) {
+          ws.getCell(row, colH).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        }
+
+        const dayData = entry[d];
+        if (!dayData) continue;
 
         if (dayData.time) {
           const timeCell = ws.getCell(row, colH);
           timeCell.value = dayData.time;
           timeCell.font = { name: 'Calibri' };
           timeCell.alignment = { horizontal: 'center', vertical: 'middle' };
-          if (bg) timeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
         }
 
         let payCell = null;
