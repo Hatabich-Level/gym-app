@@ -93,6 +93,7 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS manual_debts (id TEXT PRIMARY KEY, data JSONB NOT NULL);
     CREATE TABLE IF NOT EXISTS users         (id TEXT PRIMARY KEY, data JSONB NOT NULL);
     CREATE TABLE IF NOT EXISTS audit_log     (id TEXT PRIMARY KEY, data JSONB NOT NULL);
+    CREATE TABLE IF NOT EXISTS shifts        (id TEXT PRIMARY KEY, data JSONB NOT NULL);
   `);
 
   // Перший старт: якщо в таблиці users ще нікого немає — засіваємо
@@ -150,11 +151,12 @@ async function logAction(req, action, details) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 app.get('/api/state', auth, async (req, res) => {
-  const [m, a, p, md] = await Promise.all([
+  const [m, a, p, md, sh] = await Promise.all([
     pool.query('SELECT data FROM members'),
     pool.query('SELECT data FROM abons'),
     pool.query('SELECT data FROM payments'),
     pool.query('SELECT data FROM manual_debts'),
+    pool.query('SELECT data FROM shifts'),
   ]);
 
   const out = {
@@ -164,6 +166,7 @@ app.get('/api/state', auth, async (req, res) => {
     abons:        a.rows.map(r => r.data),
     payments:     p.rows.map(r => r.data),
     manualDebts:  md.rows.map(r => r.data),
+    shifts:       sh.rows.map(r => r.data),
   };
 
   // Лише власник бачить список акаунтів (без хешів паролів) і журнал дій
@@ -319,7 +322,16 @@ app.post('/api/abons/bulk', auth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Платежі (включно з заняттями тренера). Тільки додавання.
+// Зміни (хто на зміні по днях) — вручну проставляється в застосунку,
+// використовується для кольору колонки "час" в експорті табеля.
+// id запису = дата 'YYYY-MM-DD'. Тільки owner/admin можуть редагувати.
+app.post('/api/shifts/bulk', auth, anyAdmin, async (req, res) => {
+  const items = (req.body && req.body.items) || [];
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items required' });
+  const clean = items.map(it => ({ id: String(it.date), date: it.date, by: it.by || null }));
+  await upsert('shifts', clean);
+  res.json({ ok: true });
+});
 app.post('/api/payments', auth, async (req, res) => {
   const p = req.body;
   if (!p || !p.id) return res.status(400).json({ error: 'bad payment' });
@@ -506,14 +518,16 @@ app.get('/api/export/:year/:month', auth, async (req, res) => {
       return res.status(400).json({ error: 'Невірний рік або місяць' });
     }
 
-    const [m, a, p, u] = await Promise.all([
+    const [m, a, p, u, sh] = await Promise.all([
       pool.query('SELECT data FROM members'),
       pool.query('SELECT data FROM abons'),
       pool.query('SELECT data FROM payments'),
       pool.query('SELECT data FROM users'),
+      pool.query('SELECT data FROM shifts'),
     ]);
     const members  = m.rows.map(r => r.data);
     const usersAll = u.rows.map(r => r.data);
+    const shiftsAll = sh.rows.map(r => r.data);
     // "by" зберігається як "role:name" (напр. "admin:Олександр") — будуємо
     // мапу для швидкого пошуку кольору акаунта за цим самим ключем.
     const colorByAuthor = new Map();
@@ -521,6 +535,9 @@ app.get('/api/export/:year/:month', auth, async (req, res) => {
       const key = usr.role + (usr.name ? ':' + usr.name : '');
       colorByAuthor.set(key, usr.color || '#FFC000');
     });
+    // Вручну задані зміни (пріоритетні над автовизначенням)
+    const manualShiftByDate = new Map();
+    shiftsAll.forEach(s => { if (s.by) manualShiftByDate.set(s.date, s.by); });
     const abons    = a.rows.map(r => r.data);
     const payments = p.rows.map(r => r.data);
 
@@ -638,13 +655,21 @@ app.get('/api/export/:year/:month', auth, async (req, res) => {
     // Для кожного дня визначаємо колір: чий колір, той автор зробив
     // найбільше записів того дня (домінантна людина на зміні)
     const dayColor = {};
-    for (const [day, authorMap] of dayAuthors.entries()) {
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = monthKey + '-' + String(d).padStart(2, '0');
+      const manualBy = manualShiftByDate.get(dateStr);
+      if (manualBy && colorByAuthor.has(manualBy)) {
+        dayColor[d] = colorByAuthor.get(manualBy).replace('#', 'FF');
+        continue;
+      }
+      const authorMap = dayAuthors.get(d);
+      if (!authorMap) continue;
       let bestAuthor = null, bestCount = 0;
       for (const [author, count] of authorMap.entries()) {
         if (count > bestCount) { bestAuthor = author; bestCount = count; }
       }
       if (bestAuthor && colorByAuthor.has(bestAuthor)) {
-        dayColor[day] = colorByAuthor.get(bestAuthor).replace('#', 'FF');
+        dayColor[d] = colorByAuthor.get(bestAuthor).replace('#', 'FF');
       }
     }
 

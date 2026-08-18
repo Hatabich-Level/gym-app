@@ -9,7 +9,7 @@ const FTABS = [
   { key: 'export', label: '📊 Експорт' },
 ]
 
-export default function FinancePage({ members, abons, payments, manualDebts, role, uname, deletePayment, saveManualDebt, payManualDebt, deleteManualDebt, pushAbons, pushPayment }) {
+export default function FinancePage({ members, abons, payments, manualDebts, role, uname, users, shifts, pushShifts, deletePayment, saveManualDebt, payManualDebt, deleteManualDebt, pushAbons, pushPayment }) {
   const [tab, setTab] = useState('payments')
 
   return (
@@ -18,7 +18,7 @@ export default function FinancePage({ members, abons, payments, manualDebts, rol
       <Tabs tabs={FTABS} active={tab} onChange={setTab} />
       {tab === 'payments' && <PaymentsTab payments={payments} members={members} abons={abons} role={role} uname={uname} deletePayment={deletePayment} pushPayment={pushPayment} />}
       {tab === 'debts' && <DebtsTab manualDebts={manualDebts} members={members} abons={abons} payments={payments} role={role} saveManualDebt={saveManualDebt} payManualDebt={payManualDebt} deleteManualDebt={deleteManualDebt} pushAbons={pushAbons} pushPayment={pushPayment} />}
-      {tab === 'export' && <ExportTab payments={payments} abons={abons} />}
+      {tab === 'export' && <ExportTab payments={payments} abons={abons} role={role} users={users} shifts={shifts} pushShifts={pushShifts} />}
     </div>
   )
 }
@@ -603,9 +603,11 @@ function MethodToggle({ value, onChange }) {
   )
 }
 
-function ExportTab({ payments, abons }) {
+function ExportTab({ payments, abons, role, users, shifts, pushShifts }) {
   const [month, setMonth] = useState(TODAY.slice(0,7))
   const [loading, setLoading] = useState(false)
+  const [showShiftCal, setShowShiftCal] = useState(false)
+  const isOwner = role === 'owner'
 
   const months = useMemo(() => {
     const s = new Set([TODAY.slice(0,7)])
@@ -648,6 +650,88 @@ function ExportTab({ payments, abons }) {
       <button className="btn btn-acc" onClick={doExport} disabled={loading}>
         {loading ? '⏳ Генерується...' : '📥 Завантажити Excel'}
       </button>
+      {isOwner && (
+        <button className="btn" style={{ marginTop: 8, background: 'var(--s2)', border: '1px solid var(--brd)' }} onClick={() => setShowShiftCal(true)}>
+          📅 Хто на зміні (колір "час" в експорті)
+        </button>
+      )}
+
+      {showShiftCal && (
+        <ShiftCalendarModal
+          month={month}
+          users={users || []}
+          shifts={shifts || []}
+          pushShifts={pushShifts}
+          onClose={() => setShowShiftCal(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Календар "хто на зміні" — вручну перекриває автовизначення в експорті ──
+function ShiftCalendarModal({ month, users, shifts, pushShifts, onClose }) {
+  const [y, m] = month.split('-').map(Number)
+  const daysInMonth = new Date(y, m, 0).getDate()
+  const shiftByDate = useMemo(() => new Map(shifts.map(s => [s.date, s.by])), [shifts])
+  const [pending, setPending] = useState({}) // date -> by (незбережені зміни)
+  const [saving, setSaving] = useState(false)
+
+  function keyOf(u) { return u.role + (u.name ? ':' + u.name : '') }
+
+  function setDay(date, by) {
+    setPending(prev => ({ ...prev, [date]: by }))
+  }
+
+  async function saveAll() {
+    const items = Object.entries(pending).map(([date, by]) => ({ date, by: by || null }))
+    if (!items.length) { onClose(); return }
+    setSaving(true)
+    try {
+      await pushShifts(items)
+      onClose()
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 300, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div className="card" style={{ margin: 0, width: '100%', borderRadius: '16px 16px 0 0', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="ct">📅 Хто на зміні — {month}</div>
+        <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 12 }}>
+          Обери для кожного дня, хто був на зміні. Це перекриє автоматичне визначення в експорті.
+        </div>
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
+          const date = month + '-' + String(d).padStart(2, '0')
+          const current = pending.hasOwnProperty(date) ? pending[date] : shiftByDate.get(date)
+          return (
+            <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--brd)' }}>
+              <div style={{ width: 28, fontSize: 13, color: 'var(--txt2)' }}>{d}</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+                <button
+                  onClick={() => setDay(date, null)}
+                  title="Не задано (автоматично)"
+                  style={{ width: 26, height: 26, borderRadius: '50%', background: 'transparent', border: !current ? '2px solid var(--txt)' : '1px dashed var(--brd)', cursor: 'pointer' }}
+                />
+                {users.map(u => {
+                  const k = keyOf(u)
+                  const active = current === k
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => setDay(date, k)}
+                      title={u.name || u.login}
+                      style={{ width: 26, height: 26, borderRadius: '50%', background: u.color || '#FFC000', border: active ? '2px solid var(--txt)' : '2px solid transparent', cursor: 'pointer' }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+        <button className="btn btn-grn" style={{ marginTop: 14 }} onClick={saveAll} disabled={saving}>
+          {saving ? 'Збереження...' : '💾 Зберегти'}
+        </button>
+      </div>
     </div>
   )
 }

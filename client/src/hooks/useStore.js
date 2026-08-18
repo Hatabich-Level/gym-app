@@ -8,6 +8,7 @@ export function useStore() {
   const [manualDebts, setManualDebts] = useState([])
   const [users, setUsers] = useState([])
   const [auditLog, setAuditLog] = useState([])
+  const [shifts, setShifts] = useState([])
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
@@ -20,6 +21,7 @@ export function useStore() {
       setManualDebts(st.manualDebts || [])
       setUsers(st.users || [])
       setAuditLog(st.auditLog || [])
+      setShifts(st.shifts || [])
       return st
     } finally {
       setLoading(false)
@@ -146,6 +148,18 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
+  const pushShifts = useCallback(async (items) => {
+    setLoading(true)
+    try {
+      await api('/shifts/bulk', 'POST', { items })
+      setShifts(prev => {
+        const map = new Map(prev.map(s => [s.date, s]))
+        items.forEach(s => map.set(s.date, s))
+        return [...map.values()]
+      })
+    } finally { setLoading(false) }
+  }, [])
+
   const changeUserPassword = useCallback(async (id, password) => {
     setLoading(true)
     try {
@@ -154,7 +168,7 @@ export function useStore() {
   }, [])
 
   return {
-    members, abons, payments, manualDebts, users, auditLog, loading,
+    members, abons, payments, manualDebts, users, auditLog, shifts, pushShifts, loading,
     load, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,

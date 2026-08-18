@@ -277,6 +277,9 @@ export default function App() {
               manualDebts={store.manualDebts}
               role={role}
               uname={uname}
+              users={store.users}
+              shifts={store.shifts}
+              pushShifts={store.pushShifts}
               deletePayment={store.deletePayment}
               saveManualDebt={store.saveManualDebt}
               payManualDebt={store.payManualDebt}
