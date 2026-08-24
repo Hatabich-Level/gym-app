@@ -43,6 +43,44 @@ export default function App() {
     if (auth.role === 'trainer' && page === 'home') setPage('sessions')
   }, [auth.role])
 
+  // Автооновлення: якщо на сервері з'явився новий деплой (інша версія
+  // білда) — застосунок сам перезавантажується. Перевіряємо періодично і
+  // щоразу, коли повертаємось у застосунок (важливо для PWA на телефоні,
+  // де вкладка може довго висіти "в фоні" зі старою версією).
+  useEffect(() => {
+    let baseVersion = null
+    let cancelled = false
+
+    async function checkVersion(canReload) {
+      try {
+        const res = await fetch('/api/version', { cache: 'no-store' })
+        if (!res.ok || cancelled) return
+        const { version } = await res.json()
+        if (baseVersion === null) {
+          baseVersion = version
+        } else if (version !== baseVersion && canReload) {
+          window.location.reload()
+        }
+      } catch {}
+    }
+
+    checkVersion(false)
+    // Періодично звіряємось у фоні (без перезавантаження, щоб не заважати
+    // активній роботі), а реально оновлюємось лише тоді, коли людина
+    // повертається у застосунок — відкриває вкладку/переключається назад.
+    const interval = setInterval(() => checkVersion(false), 60000)
+    function onVisible() { if (document.visibilityState === 'visible') checkVersion(true) }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [])
+
   // Гарячі клавіші (зручно на ПК): Ctrl/Cmd+K — пошук клієнтів, Esc — закрити вікно
   useEffect(() => {
     if (!isLoggedIn) return

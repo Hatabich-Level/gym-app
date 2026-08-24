@@ -26,10 +26,30 @@ const pool = new Pool({
 });
 
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
 
-// SPA fallback — всі не-API маршрути → index.html
+// Версія білда — унікальна щоразу, коли сервер стартує (тобто після кожного
+// деплою). Клієнт періодично звіряється з нею і сам перезавантажується,
+// коли з'являється новіша версія.
+const BUILD_VERSION = String(Date.now());
+app.get('/api/version', (req, res) => res.json({ version: BUILD_VERSION }));
+
+// Статичні файли: хешовані бандли (assets/*) кешуються назавжди (їхня назва
+// міняється при кожній зміні вмісту), а index.html — ніколи не кешується,
+// щоб пристрій завжди бачив свіжу версію одразу після оновлення сторінки.
+app.use(express.static(path.join(__dirname, 'public'), {
+  index: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else if (/\.[0-9a-f]{6,}\.(js|css)$/i.test(filePath) || filePath.includes(path.join('public', 'assets'))) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
+
+// SPA fallback — всі не-API маршрути → index.html (теж без кешу)
 app.get(/^(?!\/api).*$/, (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
