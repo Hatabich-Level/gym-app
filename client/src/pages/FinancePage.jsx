@@ -68,6 +68,8 @@ function MonthlyBarChart({ data }) {
 
 function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pushPayment }) {
   const [editPayment, setEditPayment] = useState(null)
+  const [showAllMoneyMonths, setShowAllMoneyMonths] = useState(false)
+  const [showAllAbonMonths, setShowAllAbonMonths] = useState(false)
   const thisMonth = TODAY.slice(0,7)
   const monthPays = payments.filter(p => p.date?.slice(0,7) === thisMonth)
 
@@ -138,8 +140,22 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
       months[m] = (months[m] || 0) + p.amount
     }
   })
-  const sortedMonths = Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,6)
+  const sortedMonthsAll = Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0]))
+  const sortedMonths = showAllMoneyMonths ? sortedMonthsAll : sortedMonthsAll.slice(0,6)
   const recent = [...payments].sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||''))).slice(0,30)
+
+  // Скільки клубних абонементів куплено по місяцях (за датою старту) —
+  // окремо місячні й разові, тренерські пакети сюди не входять
+  const abonCounts = {}
+  abons?.forEach(ab => {
+    if (ab.deleted || ab.type === 'trainer' || !ab.startDate) return
+    const m = ab.startDate.slice(0,7)
+    if (!abonCounts[m]) abonCounts[m] = { month: 0, visit: 0 }
+    if (ab.type === 'month') abonCounts[m].month++
+    else abonCounts[m].visit++
+  })
+  const sortedAbonCountsAll = Object.entries(abonCounts).sort((a,b)=>b[0].localeCompare(a[0]))
+  const sortedAbonCounts = showAllAbonMonths ? sortedAbonCountsAll : sortedAbonCountsAll.slice(0,6)
 
   // Заняття/абонементи тренера, де не вказано, як гроші пішли від тренера до зали
   const unconfirmed = [...payments]
@@ -207,6 +223,43 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
           const mn = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'][parseInt(mo)-1]
           return <div key={m} className="payment-item"><span>{mn} {y}</span><span style={{fontWeight:600}}>{total} грн</span></div>
         })}
+        {sortedMonthsAll.length > 6 && (
+          <button
+            style={{ background: 'none', border: 'none', color: 'var(--acc)', fontSize: 13, cursor: 'pointer', padding: '10px 0 0', width: '100%', textAlign: 'center' }}
+            onClick={() => setShowAllMoneyMonths(v => !v)}
+          >
+            {showAllMoneyMonths ? '▲ Згорнути' : `▼ Показати всі місяці (${sortedMonthsAll.length})`}
+          </button>
+        )}
+      </div>
+    )}
+    {sortedAbonCounts.length > 0 && (
+      <div className="card">
+        <div className="ct">📅 Куплено абонементів по місяцях</div>
+        {sortedAbonCounts.map(([m, c]) => {
+          const [y,mo] = m.split('-')
+          const mn = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'][parseInt(mo)-1]
+          const total = c.month + c.visit
+          return (
+            <div key={m} className="payment-item">
+              <span>{mn} {y}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--txt2)' }}>
+                  {c.month > 0 ? `📅 ${c.month} міс.` : ''}{c.month > 0 && c.visit > 0 ? ' · ' : ''}{c.visit > 0 ? `🎟 ${c.visit} раз.` : ''}
+                </span>
+                <b>{total}</b>
+              </span>
+            </div>
+          )
+        })}
+        {sortedAbonCountsAll.length > 6 && (
+          <button
+            style={{ background: 'none', border: 'none', color: 'var(--acc)', fontSize: 13, cursor: 'pointer', padding: '10px 0 0', width: '100%', textAlign: 'center' }}
+            onClick={() => setShowAllAbonMonths(v => !v)}
+          >
+            {showAllAbonMonths ? '▲ Згорнути' : `▼ Показати всі місяці (${sortedAbonCountsAll.length})`}
+          </button>
+        )}
       </div>
     )}
     {recent.length > 0 && (

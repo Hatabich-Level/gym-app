@@ -8,7 +8,7 @@ import SessionsPage from './pages/SessionsPage'
 import FinancePage from './pages/FinancePage'
 import { LoadingOverlay, ReminderBanner, Tabs, Modal, FRow } from './components/UI'
 import { useStore } from './hooks/useStore'
-import { uid, abonStatus, getActiveAbon, TODAY } from './utils'
+import { uid, abonStatus, getActiveAbon, daysDiff, TODAY } from './utils'
 
 const PAGES = ['home', 'members', 'checkin', 'sessions', 'finance']
 
@@ -331,6 +331,7 @@ export default function App() {
               onReset={store.load} isOwner={isOwner}
               users={store.users} auditLog={store.auditLog}
               createUser={store.createUser} deleteUser={store.deleteUser} changeUserPassword={store.changeUserPassword} updateUserColor={store.updateUserColor}
+              abons={store.abons} pushAbons={store.pushAbons}
               currentUid={auth.uid}
             />
           )}
@@ -394,7 +395,7 @@ function NewMemberModal({ onSave, onClose }) {
 }
 
 // ── Settings page ─────────────────────────────────────────────────────────────
-function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, currentUid }) {
+function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, abons, pushAbons, currentUid }) {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('accounts')
 
@@ -444,7 +445,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
       )}
 
       {isOwner && tab === 'accounts' && (
-        <AccountsTab users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} updateUserColor={updateUserColor} currentUid={currentUid} />
+        <AccountsTab users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} updateUserColor={updateUserColor} abons={abons} pushAbons={pushAbons} currentUid={currentUid} />
       )}
 
       {isOwner && tab === 'log' && <AuditLogTab auditLog={auditLog} />}
@@ -468,12 +469,40 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
 }
 
 // ── Accounts management (owner only) ───────────────────────────────────────────
-function AccountsTab({ users, createUser, deleteUser, changeUserPassword, updateUserColor, currentUid }) {
+function AccountsTab({ users, createUser, deleteUser, changeUserPassword, updateUserColor, abons, pushAbons, currentUid }) {
   const [showAdd, setShowAdd] = useState(false)
   const [pwdFor, setPwdFor] = useState(null) // user id, для зміни пароля
   const [colorFor, setColorFor] = useState(null) // user id, для зміни кольору
+  const [busyId, setBusyId] = useState(null)
 
   const ROLE_LABEL = { owner: '👑 Головний адмін', admin: '🛠 Адмін', trainer: '🏋️ Тренер' }
+
+  function trainerAbons(u) {
+    const key = u.name || u.login
+    return (abons || []).filter(a => a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0 && a.trainer === key)
+  }
+
+  async function freezeAll(u) {
+    const list = trainerAbons(u).filter(a => !a.frozen)
+    if (!list.length) { alert('Немає активних абонементів для заморозки'); return }
+    if (!confirm(`Заморозити ${list.length} абонемент(ів) тренера ${u.name || u.login}? Клієнти не зможуть списувати заняття, поки не розморозиш.`)) return
+    setBusyId(u.id)
+    try {
+      await pushAbons(list.map(a => ({ ...a, frozen: true, freezeStart: TODAY })))
+    } finally { setBusyId(null) }
+  }
+
+  async function unfreezeAll(u) {
+    const list = trainerAbons(u).filter(a => a.frozen)
+    if (!list.length) return
+    setBusyId(u.id)
+    try {
+      await pushAbons(list.map(a => {
+        const frozenDays = daysDiff(a.freezeStart || a.startDate, TODAY)
+        return { ...a, frozen: false, freezeStart: null, extraDays: (a.extraDays || 0) + frozenDays }
+      }))
+    } finally { setBusyId(null) }
+  }
 
   return (
     <div className="card">
@@ -481,29 +510,57 @@ function AccountsTab({ users, createUser, deleteUser, changeUserPassword, update
       <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 12, lineHeight: 1.5 }}>
         🎨 Колір акаунта використовується в експорті табеля — стовпець "час" за день фарбується кольором того, хто того дня вносив записи.
       </div>
-      {(users||[]).map(u => (
-        <div key={u.id} className="irow">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              title="Змінити колір"
-              onClick={() => setColorFor(u.id)}
-              style={{ width: 22, height: 22, borderRadius: '50%', background: u.color || '#FFC000', border: '2px solid var(--brd)', cursor: updateUserColor ? 'pointer' : 'default', flexShrink: 0 }}
-            />
-            <div>
-              <div style={{ fontWeight: 500 }}>{u.name || u.login} <span style={{ color: 'var(--txt2)', fontSize: 12 }}>@{u.login}</span></div>
-              <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{ROLE_LABEL[u.role] || u.role}</div>
+      {(users||[]).map(u => {
+        const list = trainerAbons(u)
+        const frozenCount = list.filter(a => a.frozen).length
+        const activeCount = list.length - frozenCount
+        return (
+          <div key={u.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--brd)' }}>
+            <div className="irow" style={{ padding: 0, border: 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button
+                  title="Змінити колір"
+                  onClick={() => setColorFor(u.id)}
+                  style={{ width: 22, height: 22, borderRadius: '50%', background: u.color || '#FFC000', border: '2px solid var(--brd)', cursor: updateUserColor ? 'pointer' : 'default', flexShrink: 0 }}
+                />
+                <div>
+                  <div style={{ fontWeight: 500 }}>{u.name || u.login} <span style={{ color: 'var(--txt2)', fontSize: 12 }}>@{u.login}</span></div>
+                  <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{ROLE_LABEL[u.role] || u.role}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn-sm" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8, padding: '6px 10px' }} onClick={() => setPwdFor(u.id)}>🔑</button>
+                {u.id !== currentUid && (
+                  <button className="btn-sm" style={{ background: 'rgba(255,51,102,.1)', border: '1px solid rgba(255,51,102,.3)', color: 'var(--red)', borderRadius: 8, padding: '6px 10px' }}
+                    onClick={() => { if (confirm(`Видалити акаунт «${u.login}»?`)) deleteUser(u.id) }}
+                  >🗑</button>
+                )}
+              </div>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn-sm" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8, padding: '6px 10px' }} onClick={() => setPwdFor(u.id)}>🔑</button>
-            {u.id !== currentUid && (
-              <button className="btn-sm" style={{ background: 'rgba(255,51,102,.1)', border: '1px solid rgba(255,51,102,.3)', color: 'var(--red)', borderRadius: 8, padding: '6px 10px' }}
-                onClick={() => { if (confirm(`Видалити акаунт «${u.login}»?`)) deleteUser(u.id) }}
-              >🗑</button>
+            {u.role === 'trainer' && list.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingLeft: 32 }}>
+                <span style={{ fontSize: 12, color: 'var(--txt2)' }}>
+                  🎫 {activeCount} активних{frozenCount > 0 ? `, ❄️ ${frozenCount} заморожено` : ''}
+                </span>
+                {activeCount > 0 && (
+                  <button
+                    className="btn-sm" disabled={busyId === u.id}
+                    style={{ background: 'rgba(91,141,246,.1)', border: '1px solid rgba(91,141,246,.3)', color: 'var(--acc)', borderRadius: 8, padding: '4px 10px', fontSize: 12 }}
+                    onClick={() => freezeAll(u)}
+                  >❄️ Заморозити всі</button>
+                )}
+                {frozenCount > 0 && (
+                  <button
+                    className="btn-sm" disabled={busyId === u.id}
+                    style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt)', borderRadius: 8, padding: '4px 10px', fontSize: 12 }}
+                    onClick={() => unfreezeAll(u)}
+                  >▶️ Розморозити всі</button>
+                )}
+              </div>
             )}
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       <button className="btn btn-acc" style={{ marginTop: 12 }} onClick={() => setShowAdd(true)}>+ Новий акаунт</button>
 

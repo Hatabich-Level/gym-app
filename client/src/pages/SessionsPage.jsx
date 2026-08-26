@@ -131,7 +131,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
       trainer: uname || (role === 'trainer' ? 'Тренер' : 'Адмін'),
       date: sessionDate, time: nowTime(),
       amount: totalAmount, trainerPrice, trainerEarning, hallEarning,
-      method, hallMethod: role === 'trainer' ? null : hallMethod, note, trainerAbonId
+      method, hallMethod: useAbon ? 'cash' : (role === 'trainer' ? null : hallMethod), note, trainerAbonId
     }
 
     if (abonsChanged.length) await pushAbons(abonsChanged)
@@ -186,7 +186,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
       amount: hallTotal, trainerEarning: trainerTotal,
       splitCount: count, payingCount, perPerson,
       hallPerPerson: SPLIT_HALL_FEE,
-      note, method: splitMethod, hallMethod: role === 'trainer' ? null : splitHallMethod
+      note, method: splitMethod, hallMethod: hallTotal === 0 ? 'cash' : (role === 'trainer' ? null : splitHallMethod)
     }
 
     if (abonsChanged.length) await pushAbons(abonsChanged)

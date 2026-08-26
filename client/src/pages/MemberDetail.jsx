@@ -28,12 +28,15 @@ export default function MemberDetail({
   const st = displayAbon ? abonStatus(displayAbon) : null
   const trainerAbon = getActiveTrainerAbon(memberId, abons)
   // Для відображення картки — навіть якщо абонемент тренера щойно "згорів"
-  // через 30 днів невикористання, покажемо це явно, а не просто мовчки
-  // приховаємо картку (щоб було зрозуміло, чому пропали заняття)
+  // через 30 днів невикористання, або заморожений — покажемо це явно, а не
+  // просто мовчки приховаємо картку (щоб було зрозуміло, чому пропали заняття)
   const trainerAbonExpiredUnused = !trainerAbon
     ? abons.find(a => a.memberId === memberId && a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0 && isTrainerAbonExpired(a))
     : null
-  const trainerAbonDisplay = trainerAbon || trainerAbonExpiredUnused
+  const trainerAbonFrozen = (!trainerAbon && !trainerAbonExpiredUnused)
+    ? abons.find(a => a.memberId === memberId && a.type === 'trainer' && !a.deleted && a.sessionsLeft > 0 && a.frozen)
+    : null
+  const trainerAbonDisplay = trainerAbon || trainerAbonExpiredUnused || trainerAbonFrozen
   const debt = activeAbon ? getMemberDebt(memberId, abons, payments) : 0
 
   // Виявлення забруднених даних: кілька записів з active=true одночасно
@@ -115,8 +118,12 @@ export default function MemberDetail({
                 <div style={{ background: 'rgba(255,51,102,.08)', border: '1px solid rgba(255,51,102,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 10, fontSize: 13, color: 'var(--red)', lineHeight: 1.5 }}>
                   ⚠️ Прострочено — не використано за {TRAINER_ABON_EXPIRY_DAYS} днів від дати покупки ({fmtDate(trainerAbonDisplay.startDate)}). Залишок занять згорів.
                 </div>
+              ) : trainerAbonFrozen ? (
+                <div style={{ background: 'rgba(91,141,246,.08)', border: '1px solid rgba(91,141,246,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 10, fontSize: 13, color: 'var(--acc)', lineHeight: 1.5 }}>
+                  ❄️ Заморожено тренером — відлік 30 днів призупинено, списати заняття зараз не можна.
+                </div>
               ) : (() => {
-                const deadline = addDays(trainerAbonDisplay.startDate, TRAINER_ABON_EXPIRY_DAYS)
+                const deadline = addDays(trainerAbonDisplay.startDate, TRAINER_ABON_EXPIRY_DAYS + (trainerAbonDisplay.extraDays || 0))
                 const daysLeft = daysDiff(TODAY, deadline)
                 return daysLeft <= 7 && (
                   <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 10, fontSize: 13, color: 'var(--ylw)' }}>
@@ -141,10 +148,20 @@ export default function MemberDetail({
                   ))}
                 </div>
               )}
-              {!trainerAbonExpiredUnused && (
+              {!trainerAbonExpiredUnused && !trainerAbonFrozen && (
                 <button className="btn-sm btn-acc" style={{ marginTop: 10, width: '100%' }} onClick={() => setModal('addTrainerSessions')}>
                   + Додати заняття (поважна причина)
                 </button>
+              )}
+              {trainerAbonFrozen && isAdmin && (
+                <button
+                  className="btn-sm"
+                  style={{ marginTop: 10, width: '100%', background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt)' }}
+                  onClick={async () => {
+                    const frozenDays = daysDiff(trainerAbonFrozen.freezeStart || trainerAbonFrozen.startDate, TODAY)
+                    await pushAbons([{ ...trainerAbonFrozen, frozen: false, freezeStart: null, extraDays: (trainerAbonFrozen.extraDays || 0) + frozenDays }])
+                  }}
+                >▶️ Розморозити</button>
               )}
             </div>
           )}
