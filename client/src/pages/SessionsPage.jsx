@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import {
   TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon, getActiveAbon, isTrainerAbonExpired,
-  HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning
+  HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning, trainerTerms
 } from '../utils'
 import { FRow, Ava, MethodPill, ChangeCalc } from '../components/UI'
 
@@ -14,7 +14,13 @@ function MethodToggle({ value, onChange }) {
   )
 }
 
-export default function SessionsPage({ members, abons, payments, role, uname, pushAbons, pushPayment }) {
+export default function SessionsPage({ members, abons, payments, role, uname, myTerms, pushAbons, pushPayment }) {
+  // Індивідуальні умови цього тренера (відсоток і суми за зал).
+  // Якщо не задані — беруться загальні значення.
+  const terms = trainerTerms(myTerms)
+  const FEE = terms.fee
+  const SPLIT_FEE = terms.splitFee
+
   const [sType, setSType] = useState('solo')
 
   // Solo state
@@ -97,7 +103,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
     const payingCount = splitClients.filter(c => !c.useAbon && !c.isTrainer).length
     const hallPayingCount = splitClients.filter(c => !c.isTrainer && !c.useAbon).length
     const trainerTotal = payingCount * per
-    const hallTotal = hallPayingCount * SPLIT_HALL_FEE
+    const hallTotal = hallPayingCount * SPLIT_FEE
     return { per, count, payingCount, hallPayingCount, trainerTotal, hallTotal }
   }, [splitClients, splitAmount])
 
@@ -121,9 +127,9 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
       trainerAbonId = trainerAbon.id
     }
 
-    const totalAmount = useAbon ? 0 : trainerPrice + HALL_FEE
-    const trainerEarning = useAbon ? 0 : calcTrainerEarning(trainerPrice)
-    const hallEarning = useAbon ? 0 : calcHallEarning(trainerPrice)
+    const totalAmount = useAbon ? 0 : trainerPrice + FEE
+    const trainerEarning = useAbon ? 0 : calcTrainerEarning(trainerPrice, terms)
+    const hallEarning = useAbon ? 0 : calcHallEarning(trainerPrice, terms)
 
     const p = {
       id: uid(), kind: 'session', sessionType: 'solo',
@@ -174,7 +180,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
     const hallPayingCount = splitClients.filter(c => !c.isTrainer && !c.useAbon).length
     const count = splitClients.length
     const trainerTotal = payingCount * perPerson
-    const hallTotal = hallPayingCount * SPLIT_HALL_FEE
+    const hallTotal = hallPayingCount * SPLIT_FEE
 
     const p = {
       id: uid(), kind: 'session', sessionType: 'split',
@@ -185,7 +191,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
       date: sessionDate, time: nowTime(),
       amount: hallTotal, trainerEarning: trainerTotal,
       splitCount: count, payingCount, perPerson,
-      hallPerPerson: SPLIT_HALL_FEE,
+      hallPerPerson: SPLIT_FEE,
       note, method: splitMethod, hallMethod: hallTotal === 0 ? 'cash' : (role === 'trainer' ? null : splitHallMethod)
     }
 
@@ -275,9 +281,9 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
               const tp = parseFloat(amount) || 0
               return (
                 <div style={{ background: 'rgba(39,201,122,.08)', border: '1px solid rgba(39,201,122,.25)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 14, fontSize: 13, lineHeight: 1.8 }}>
-                  💰 Клієнт платить: <b>{tp + HALL_FEE} грн</b> (тренер {tp} + зал {HALL_FEE})<br />
-                  🏦 Каса залу: <b>{calcHallEarning(tp)} грн</b><br />
-                  💵 <span style={{ color: 'var(--grn)' }}>Каса тренера: <b>{calcTrainerEarning(tp)} грн</b></span>
+                  💰 Клієнт платить: <b>{tp + FEE} грн</b> (тренер {tp} + зал {FEE})<br />
+                  🏦 Каса залу: <b>{calcHallEarning(tp, terms)} грн</b><br />
+                  💵 <span style={{ color: 'var(--grn)' }}>Каса тренера: <b>{calcTrainerEarning(tp, terms)} грн</b></span>
                 </div>
               )
             })()}
@@ -345,7 +351,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
             {splitPreview.per > 0 && splitClients.length > 0 && (
               <div style={{ fontSize: 14, color: 'var(--grn)', fontWeight: 600, marginBottom: 14 }}>
                 💵 Твоя каса: <b>{splitPreview.trainerTotal} грн</b> ({splitPreview.payingCount} × {splitPreview.per} грн)<br />
-                🏦 Залу: <b>{splitPreview.hallTotal} грн</b> ({splitPreview.hallPayingCount} × {SPLIT_HALL_FEE} грн)
+                🏦 Залу: <b>{splitPreview.hallTotal} грн</b> ({splitPreview.hallPayingCount} × {SPLIT_FEE} грн)
               </div>
             )}
           </>
@@ -375,7 +381,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
               )}
             </div>
             {method === 'cash' && !useAbon && (
-              <ChangeCalc due={(parseFloat(amount) || 0) + HALL_FEE} />
+              <ChangeCalc due={(parseFloat(amount) || 0) + FEE} />
             )}
           </div>
         )}
@@ -402,7 +408,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, pu
               )}
             </div>
             {splitMethod === 'cash' && splitPreview.payingCount > 0 && (
-              <ChangeCalc due={(parseFloat(splitAmount) || 0) + SPLIT_HALL_FEE} />
+              <ChangeCalc due={(parseFloat(splitAmount) || 0) + SPLIT_FEE} />
             )}
           </div>
         )}

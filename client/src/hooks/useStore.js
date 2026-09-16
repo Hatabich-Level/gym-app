@@ -9,6 +9,7 @@ export function useStore() {
   const [users, setUsers] = useState([])
   const [auditLog, setAuditLog] = useState([])
   const [shifts, setShifts] = useState([])
+  const [myTerms, setMyTerms] = useState(null)
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
@@ -22,6 +23,7 @@ export function useStore() {
       setUsers(st.users || [])
       setAuditLog(st.auditLog || [])
       setShifts(st.shifts || [])
+      setMyTerms(st.myTerms || null)
       return st
     } finally {
       setLoading(false)
@@ -148,6 +150,14 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
+  const updateUserTerms = useCallback(async (id, terms) => {
+    setLoading(true)
+    try {
+      const res = await api('/users/' + id + '/terms', 'POST', terms)
+      setUsers(prev => prev.map(u => u.id === id ? (res.user || u) : u))
+    } finally { setLoading(false) }
+  }, [])
+
   const pushShifts = useCallback(async (items) => {
     setLoading(true)
     try {
@@ -168,11 +178,11 @@ export function useStore() {
   }, [])
 
   return {
-    members, abons, payments, manualDebts, users, auditLog, shifts, pushShifts, loading,
+    members, abons, payments, manualDebts, users, auditLog, shifts, pushShifts, myTerms, loading,
     load, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,
-    createUser, deleteUser, changeUserPassword, updateUserColor,
+    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms,
     setAbons, setMembers
   }
 }

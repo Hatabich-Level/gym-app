@@ -303,6 +303,7 @@ export default function App() {
               payments={store.payments}
               role={role}
               uname={uname}
+              myTerms={store.myTerms}
               pushAbons={store.pushAbons}
               pushPayment={store.pushPayment}
             />
@@ -330,7 +331,7 @@ export default function App() {
             <SettingsPage
               onReset={store.load} isOwner={isOwner}
               users={store.users} auditLog={store.auditLog}
-              createUser={store.createUser} deleteUser={store.deleteUser} changeUserPassword={store.changeUserPassword} updateUserColor={store.updateUserColor}
+              createUser={store.createUser} deleteUser={store.deleteUser} changeUserPassword={store.changeUserPassword} updateUserColor={store.updateUserColor} updateUserTerms={store.updateUserTerms}
               abons={store.abons} pushAbons={store.pushAbons}
               currentUid={auth.uid}
             />
@@ -395,7 +396,7 @@ function NewMemberModal({ onSave, onClose }) {
 }
 
 // ── Settings page ─────────────────────────────────────────────────────────────
-function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, abons, pushAbons, currentUid }) {
+function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('accounts')
 
@@ -445,7 +446,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
       )}
 
       {isOwner && tab === 'accounts' && (
-        <AccountsTab users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} updateUserColor={updateUserColor} abons={abons} pushAbons={pushAbons} currentUid={currentUid} />
+        <AccountsTab users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} updateUserColor={updateUserColor} updateUserTerms={updateUserTerms} abons={abons} pushAbons={pushAbons} currentUid={currentUid} />
       )}
 
       {isOwner && tab === 'log' && <AuditLogTab auditLog={auditLog} />}
@@ -469,11 +470,12 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
 }
 
 // ── Accounts management (owner only) ───────────────────────────────────────────
-function AccountsTab({ users, createUser, deleteUser, changeUserPassword, updateUserColor, abons, pushAbons, currentUid }) {
+function AccountsTab({ users, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
   const [showAdd, setShowAdd] = useState(false)
   const [pwdFor, setPwdFor] = useState(null) // user id, для зміни пароля
   const [colorFor, setColorFor] = useState(null) // user id, для зміни кольору
   const [busyId, setBusyId] = useState(null)
+  const [termsFor, setTermsFor] = useState(null) // user id, для умов оплати
 
   const ROLE_LABEL = { owner: '👑 Головний адмін', admin: '🛠 Адмін', trainer: '🏋️ Тренер' }
 
@@ -529,6 +531,9 @@ function AccountsTab({ users, createUser, deleteUser, changeUserPassword, update
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
+                {u.role === 'trainer' && updateUserTerms && (
+                  <button className="btn-sm" title="Умови оплати" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8, padding: '6px 10px' }} onClick={() => setTermsFor(u.id)}>💰</button>
+                )}
                 <button className="btn-sm" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8, padding: '6px 10px' }} onClick={() => setPwdFor(u.id)}>🔑</button>
                 {u.id !== currentUid && (
                   <button className="btn-sm" style={{ background: 'rgba(255,51,102,.1)', border: '1px solid rgba(255,51,102,.3)', color: 'var(--red)', borderRadius: 8, padding: '6px 10px' }}
@@ -566,6 +571,13 @@ function AccountsTab({ users, createUser, deleteUser, changeUserPassword, update
 
       {showAdd && <AddUserModal onSave={async (data) => { await createUser(data); setShowAdd(false) }} onClose={() => setShowAdd(false)} />}
       {pwdFor && <ChangePasswordModal onSave={async (pwd) => { await changeUserPassword(pwdFor, pwd); setPwdFor(null) }} onClose={() => setPwdFor(null)} />}
+      {termsFor && updateUserTerms && (
+        <TrainerTermsModal
+          user={(users || []).find(u => u.id === termsFor)}
+          onSave={async (terms) => { await updateUserTerms(termsFor, terms); setTermsFor(null) }}
+          onClose={() => setTermsFor(null)}
+        />
+      )}
       {colorFor && updateUserColor && (
         <ColorPickerModal
           initial={(users.find(u => u.id === colorFor) || {}).color || '#FFC000'}
@@ -574,6 +586,51 @@ function AccountsTab({ users, createUser, deleteUser, changeUserPassword, update
         />
       )}
     </div>
+  )
+}
+
+function TrainerTermsModal({ user, onSave, onClose }) {
+  const [pct, setPct] = useState(user?.trainerPct != null ? String(Math.round(user.trainerPct * 100)) : '')
+  const [fee, setFee] = useState(user?.hallFee != null ? String(user.hallFee) : '')
+  const [splitFee, setSplitFee] = useState(user?.splitHallFee != null ? String(user.splitHallFee) : '')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    const pctNum = pct.trim() === '' ? null : Number(pct)
+    if (pctNum !== null && !(pctNum > 0 && pctNum < 100)) { alert('Відсоток має бути від 1 до 99'); return }
+    const feeNum = fee.trim() === '' ? null : Number(fee)
+    if (feeNum !== null && !(feeNum >= 0)) { alert('Сума за зал не може бути відʼємною'); return }
+    const splitNum = splitFee.trim() === '' ? null : Number(splitFee)
+    if (splitNum !== null && !(splitNum >= 0)) { alert('Сума за зал (спліт) не може бути відʼємною'); return }
+
+    setSaving(true)
+    try {
+      await onSave({
+        trainerPct: pctNum === null ? null : pctNum / 100,
+        hallFee: feeNum,
+        splitHallFee: splitNum,
+      })
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <Modal title={`💰 Умови оплати — ${user?.name || user?.login || ''}`} onClose={onClose}>
+      <div style={{ fontSize: 13, color: 'var(--txt2)', marginBottom: 16, lineHeight: 1.6 }}>
+        Індивідуальні умови для цього тренера. Залиш поле порожнім, щоб діяли загальні значення (60% тренеру, 150 грн зал, 20 грн зал за спліт).
+      </div>
+      <FRow label="Відсоток тренера (%)">
+        <input type="number" value={pct} onChange={e => setPct(e.target.value)} placeholder="60 (за замовчуванням)" min={1} max={99} />
+      </FRow>
+      <FRow label="Сума за зал — звичайне заняття (грн)">
+        <input type="number" value={fee} onChange={e => setFee(e.target.value)} placeholder="150 (за замовчуванням)" min={0} />
+      </FRow>
+      <FRow label="Сума за зал — спліт, з кожного (грн)">
+        <input type="number" value={splitFee} onChange={e => setSplitFee(e.target.value)} placeholder="20 (за замовчуванням)" min={0} />
+      </FRow>
+      <button className="btn btn-grn" onClick={save} disabled={saving}>
+        {saving ? 'Збереження...' : '💾 Зберегти умови'}
+      </button>
+    </Modal>
   )
 }
 

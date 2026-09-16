@@ -104,11 +104,31 @@ export const HALL_FEE = 150
 export const SPLIT_HALL_FEE = 20
 export const TRAINER_PCT = 0.60
 
-export function calcTrainerEarning(trainerPrice) {
-  return Math.round((trainerPrice + HALL_FEE) * TRAINER_PCT)
+// Кожен тренер може мати власні умови (відсоток і суму за зал), які
+// задаються в Налаштування → Акаунти. Якщо не задано — беруться загальні.
+export function trainerTerms(user) {
+  const pct = (user && typeof user.trainerPct === 'number' && user.trainerPct > 0 && user.trainerPct < 1)
+    ? user.trainerPct : TRAINER_PCT
+  const fee = (user && typeof user.hallFee === 'number' && user.hallFee >= 0)
+    ? user.hallFee : HALL_FEE
+  const splitFee = (user && typeof user.splitHallFee === 'number' && user.splitHallFee >= 0)
+    ? user.splitHallFee : SPLIT_HALL_FEE
+  return { pct, fee, splitFee }
 }
-export function calcHallEarning(trainerPrice) {
-  return Math.round((trainerPrice + HALL_FEE) * (1 - TRAINER_PCT) - HALL_FEE)
+
+export function findTrainerUser(users, role, uname) {
+  if (!users || !users.length) return null
+  const key = uname || ''
+  return users.find(u => u.role === role && (u.name || u.login) === key) || null
+}
+
+export function calcTrainerEarning(trainerPrice, terms) {
+  const { pct, fee } = terms || { pct: TRAINER_PCT, fee: HALL_FEE }
+  return Math.round((trainerPrice + fee) * pct)
+}
+export function calcHallEarning(trainerPrice, terms) {
+  const { pct, fee } = terms || { pct: TRAINER_PCT, fee: HALL_FEE }
+  return Math.round((trainerPrice + fee) * (1 - pct) - fee)
 }
 
 export function sumByMethod(payments, method) {

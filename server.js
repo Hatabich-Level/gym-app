@@ -189,6 +189,20 @@ app.get('/api/state', auth, async (req, res) => {
     shifts:       sh.rows.map(r => r.data),
   };
 
+  // Власні умови оплати (відсоток/суми за зал) — потрібні кожному, хто
+  // записує заняття, щоб розрахунок був за його індивідуальними умовами
+  if (req.user.uid) {
+    const { rows: meRows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.user.uid]);
+    if (meRows.length) {
+      const me = meRows[0].data;
+      out.myTerms = {
+        trainerPct: me.trainerPct,
+        hallFee: me.hallFee,
+        splitHallFee: me.splitHallFee,
+      };
+    }
+  }
+
   // Лише власник бачить список акаунтів (без хешів паролів) і журнал дій
   if (req.user.role === 'owner') {
     const [u, log] = await Promise.all([
@@ -499,6 +513,39 @@ app.post('/api/users/:id/color', auth, ownerOnly, async (req, res) => {
   user.color = color;
   await upsert('users', [user]);
   res.json({ ok: true, color });
+});
+
+// Індивідуальні умови оплати тренера (відсоток і суми за зал)
+app.post('/api/users/:id/terms', auth, ownerOnly, async (req, res) => {
+  const { trainerPct, hallFee, splitHallFee } = req.body || {};
+  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
+  const user = rows[0].data;
+
+  if (trainerPct === null) delete user.trainerPct;
+  else if (trainerPct !== undefined) {
+    const v = Number(trainerPct);
+    if (!(v > 0 && v < 1)) return res.status(400).json({ error: 'Відсоток має бути від 1 до 99' });
+    user.trainerPct = v;
+  }
+
+  if (hallFee === null) delete user.hallFee;
+  else if (hallFee !== undefined) {
+    const v = Number(hallFee);
+    if (!(v >= 0)) return res.status(400).json({ error: 'Сума за зал не може бути відʼємною' });
+    user.hallFee = v;
+  }
+
+  if (splitHallFee === null) delete user.splitHallFee;
+  else if (splitHallFee !== undefined) {
+    const v = Number(splitHallFee);
+    if (!(v >= 0)) return res.status(400).json({ error: 'Сума за зал (спліт) не може бути відʼємною' });
+    user.splitHallFee = v;
+  }
+
+  await upsert('users', [user]);
+  const { passwordHash, ...safe } = user;
+  res.json({ ok: true, user: safe });
 });
 
 // Змінити пароль акаунта (свій або будь-чий — лише owner)
