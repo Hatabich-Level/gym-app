@@ -124,11 +124,13 @@ export function findTrainerUser(users, role, uname) {
 
 export function calcTrainerEarning(trainerPrice, terms) {
   const { pct, fee } = terms || { pct: TRAINER_PCT, fee: HALL_FEE }
-  return Math.round((trainerPrice + fee) * pct)
+  return Math.max(0, Math.round((trainerPrice + fee) * pct))
 }
 export function calcHallEarning(trainerPrice, terms) {
   const { pct, fee } = terms || { pct: TRAINER_PCT, fee: HALL_FEE }
-  return Math.round((trainerPrice + fee) * (1 - pct) - fee)
+  // Каса залу не може бути відʼємною — якщо за формулою виходить мінус
+  // (напр. занизька ціна заняття при великій сумі за зал), показуємо 0
+  return Math.max(0, Math.round((trainerPrice + fee) * (1 - pct) - fee))
 }
 
 export function sumByMethod(payments, method) {

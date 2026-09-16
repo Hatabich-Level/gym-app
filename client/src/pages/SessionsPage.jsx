@@ -595,8 +595,9 @@ function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment,
   // Формула: ((trainerPrice + abonPrice) * 0.6) - abonPrice = наша частка
   const trainerPrice = parseFloat(price) || 0
   const total = trainerPrice + abonPrice
-  const trainerEarning = Math.round(total * 0.6)
-  const hallEarning = Math.round(total * 0.4) - abonPrice
+  const trainerEarning = Math.max(0, Math.round(total * 0.6))
+  // Каса залу не може бути відʼємною — якщо за формулою мінус, показуємо 0
+  const hallEarning = Math.max(0, Math.round(total * 0.4) - abonPrice)
 
   async function save() {
     if (!clientId && !search.trim()) { alert('Виберіть клієнта'); return }
