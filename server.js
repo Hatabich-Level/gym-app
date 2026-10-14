@@ -104,6 +104,17 @@ function anyAdmin(req, res, next) {
   next();
 }
 
+// ── Авторизація NFC-пристроїв (ESP32) ───────────────────────────────────────
+// Пристрої — не люди, тож замість логіну/пароля й JWT у них простий
+// секретний ключ, зашитий у прошивку і збіжний зі змінною середовища
+// DEVICE_KEY на сервері (Render → Environment).
+const DEVICE_KEY = process.env.DEVICE_KEY || 'change-me-device-key';
+function deviceAuth(req, res, next) {
+  const key = req.headers['x-device-key'] || '';
+  if (!key || key !== DEVICE_KEY) return res.status(401).json({ error: 'invalid device key' });
+  next();
+}
+
 // ── DB init + seed ────────────────────────────────────────────────────────────
 async function initDb() {
   await pool.query(`
@@ -170,6 +181,97 @@ async function logAction(req, action, details) {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
+// ── NFC-пристрої (ESP32) ─────────────────────────────────────────────────────
+const TODAY_STR = () => new Date().toISOString().slice(0, 10);
+const NOW_TIME = () => {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+};
+
+// Знаходить активний клубний абонемент клієнта (найновіший, не видалений,
+// не тренерський) — аналогічно getActiveAbon з client/src/utils.js
+function findActiveAbon(memberId, allAbons) {
+  const list = allAbons
+    .filter(a => a.memberId === memberId && a.active && !a.deleted && a.type !== 'trainer')
+    .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+  return list[0] || null;
+}
+function abonUsable(ab) {
+  if (!ab) return { ok: false, reason: 'Абонемент не знайдено' };
+  if (ab.frozen) return { ok: false, reason: 'Абонемент заморожено' };
+  if (ab.type === 'month') {
+    if (!ab.endDate || ab.endDate < TODAY_STR()) return { ok: false, reason: 'Абонемент прострочено' };
+  }
+  if (ab.type === 'visit' && !ab.active) return { ok: false, reason: 'Абонемент вже використано' };
+  return { ok: true };
+}
+function abonStatusLabel(ab) {
+  if (ab.type === 'month') return `до ${ab.endDate}`;
+  if (ab.type === 'visit') return 'разовий';
+  return '';
+}
+
+// Список клієнтів (тільки id+ім'я, легкий payload) — для "Записувача",
+// щоб гортати список енкодером на екрані
+app.get('/api/device/members', deviceAuth, async (req, res) => {
+  const { rows } = await pool.query('SELECT data FROM members');
+  const list = rows
+    .map(r => ({ id: r.data.id, name: r.data.name }))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'uk'));
+  res.json({ members: list });
+});
+
+// Прив'язати код картки до клієнта — для "Записувача"
+app.post('/api/device/register-card', deviceAuth, async (req, res) => {
+  const { cardId, memberId } = req.body || {};
+  if (!cardId || !memberId) return res.status(400).json({ error: 'cardId і memberId обовʼязкові' });
+
+  const { rows: dupRows } = await pool.query("SELECT data FROM members WHERE data->>'cardId' = $1", [cardId]);
+  const dup = dupRows.find(r => r.data.id !== memberId);
+  if (dup) return res.status(400).json({ error: 'Ця картка вже прив\'язана до іншого клієнта', memberName: dup.data.name });
+
+  const { rows } = await pool.query('SELECT data FROM members WHERE id = $1', [memberId]);
+  if (!rows.length) return res.status(404).json({ error: 'Клієнта не знайдено' });
+  const member = rows[0].data;
+  member.cardId = cardId;
+  await upsert('members', [member]);
+  res.json({ ok: true, memberName: member.name });
+});
+
+// Чекін по скану картки — для "Зчитувача"
+app.post('/api/device/checkin', deviceAuth, async (req, res) => {
+  const { cardId } = req.body || {};
+  if (!cardId) return res.status(400).json({ error: 'cardId обовʼязковий' });
+
+  const { rows: memRows } = await pool.query("SELECT data FROM members WHERE data->>'cardId' = $1", [cardId]);
+  if (!memRows.length) return res.status(404).json({ error: 'not_found', message: 'Картку не зареєстровано' });
+  const member = memRows[0].data;
+
+  const { rows: abonRows } = await pool.query('SELECT data FROM abons');
+  const allAbons = abonRows.map(r => r.data);
+  const abon = findActiveAbon(member.id, allAbons);
+  const usable = abonUsable(abon);
+
+  if (!usable.ok) {
+    return res.status(200).json({ ok: false, memberName: member.name, reason: usable.reason });
+  }
+
+  const today = TODAY_STR();
+  const already = (abon.visits || []).some(v => v.date === today);
+  if (already) {
+    return res.json({ ok: true, alreadyToday: true, memberName: member.name, status: abonStatusLabel(abon) });
+  }
+
+  const updated = {
+    ...abon,
+    visits: [...(abon.visits || []), { date: today, time: NOW_TIME(), by: 'device:reader' }]
+  };
+  if (updated.type === 'visit') updated.active = false; // разовий одразу закривається
+  await upsert('abons', [updated]);
+
+  res.json({ ok: true, memberName: member.name, status: abonStatusLabel(abon) });
+});
+
 app.get('/api/state', auth, async (req, res) => {
   const [m, a, p, md, sh] = await Promise.all([
     pool.query('SELECT data FROM members'),
@@ -235,6 +337,16 @@ async function upsert(table, items) {
 
 // Клієнти: створення дозволено owner+admin; редагування існуючого (зміна
 // імені/телефону) — лише owner. Тренер не може ні створювати, ні редагувати.
+// Відв'язати NFC-картку від клієнта (напр. картку втрачено/замінено)
+app.post('/api/members/:id/unlink-card', auth, anyAdmin, async (req, res) => {
+  const { rows } = await pool.query('SELECT data FROM members WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Клієнта не знайдено' });
+  const member = rows[0].data;
+  delete member.cardId;
+  await upsert('members', [member]);
+  res.json({ ok: true, member });
+});
+
 app.post('/api/members/bulk', auth, anyAdmin, async (req, res) => {
   const items = (req.body && req.body.items) || [];
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items required' });
