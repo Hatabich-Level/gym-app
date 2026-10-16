@@ -150,6 +150,14 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
+  const unlinkCard = useCallback(async (memberId) => {
+    setLoading(true)
+    try {
+      const res = await api('/members/' + memberId + '/unlink-card', 'POST')
+      setMembers(prev => prev.map(m => m.id === memberId ? (res.member || m) : m))
+    } finally { setLoading(false) }
+  }, [])
+
   const updateUserTerms = useCallback(async (id, terms) => {
     setLoading(true)
     try {
@@ -182,7 +190,7 @@ export function useStore() {
     load, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,
-    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms,
+    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, unlinkCard,
     setAbons, setMembers
   }
 }

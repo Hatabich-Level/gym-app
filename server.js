@@ -182,11 +182,9 @@ async function logAction(req, action, details) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 // ── NFC-пристрої (ESP32) ─────────────────────────────────────────────────────
-const TODAY_STR = () => new Date().toISOString().slice(0, 10);
-const NOW_TIME = () => {
-  const d = new Date();
-  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-};
+// Сервер на Render працює в UTC, а відвідування мають бути за київським часом
+const TODAY_STR = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Kyiv' });
+const NOW_TIME = () => new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Kyiv', hour: '2-digit', minute: '2-digit' });
 
 // Знаходить активний клубний абонемент клієнта (найновіший, не видалений,
 // не тренерський) — аналогічно getActiveAbon з client/src/utils.js

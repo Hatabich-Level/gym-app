@@ -243,6 +243,7 @@ export default function App() {
           pushAbons={store.pushAbons}
           pushPayment={store.pushPayment}
           deletePayment={store.deletePayment}
+          unlinkCard={store.unlinkCard}
           loading={store.loading}
         />
       )}

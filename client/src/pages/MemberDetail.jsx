@@ -8,7 +8,7 @@ import { Modal, FRow, MethodToggle, MethodPill, ProgressBar, IconBtn, ChangeCalc
 
 export default function MemberDetail({
   memberId, members, abons, payments, role, uname,
-  onBack, onSaveMember, onDeleteMember, pushAbons, pushPayment, deletePayment, loading
+  onBack, onSaveMember, onDeleteMember, pushAbons, pushPayment, deletePayment, unlinkCard, loading
 }) {
   const mem = members.find(m => m.id === memberId)
   const [modal, setModal] = useState(null) // 'edit'|'abon'|'pay'|'extend'|'freeze'
@@ -107,6 +107,24 @@ export default function MemberDetail({
           </button>
         )}
       </div>
+
+      {isAdmin && (
+        <div style={{ padding: '10px 14px 0' }}>
+          <div className="card" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ fontSize: 13, color: mem.cardId ? 'var(--grn)' : 'var(--txt2)' }}>
+              🪪 {mem.cardId ? 'NFC-картка прив\'язана' : 'NFC-картка не прив\'язана'}
+              {mem.cardId && <span style={{ color: 'var(--txt2)', fontSize: 11, marginLeft: 8 }}>{mem.cardId}</span>}
+            </div>
+            {mem.cardId && unlinkCard && (
+              <button
+                className="btn-sm"
+                style={{ background: 'rgba(255,51,102,.1)', border: '1px solid rgba(255,51,102,.3)', color: 'var(--red)', borderRadius: 8, padding: '4px 10px', fontSize: 12 }}
+                onClick={() => { if (confirm(`Відв'язати картку від ${mem.name}?`)) unlinkCard(memberId) }}
+              >Відв'язати</button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: 14 }} className="detail-grid">
         <div className="detail-col-main">
