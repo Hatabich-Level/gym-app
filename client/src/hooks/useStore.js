@@ -10,6 +10,7 @@ export function useStore() {
   const [auditLog, setAuditLog] = useState([])
   const [shifts, setShifts] = useState([])
   const [myTerms, setMyTerms] = useState(null)
+  const [trainers, setTrainers] = useState([])
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
@@ -24,6 +25,7 @@ export function useStore() {
       setAuditLog(st.auditLog || [])
       setShifts(st.shifts || [])
       setMyTerms(st.myTerms || null)
+      setTrainers(st.trainers || [])
       return st
     } finally {
       setLoading(false)
@@ -158,6 +160,15 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
+  const assignTrainer = useCallback(async (memberIds, trainerId) => {
+    setLoading(true)
+    try {
+      const res = await api('/members/assign-trainer', 'POST', { memberIds, trainerId })
+      const map = new Map((res.members || []).map(m => [m.id, m]))
+      setMembers(prev => prev.map(m => map.get(m.id) || m))
+    } finally { setLoading(false) }
+  }, [])
+
   const updateUserTerms = useCallback(async (id, terms) => {
     setLoading(true)
     try {
@@ -186,11 +197,11 @@ export function useStore() {
   }, [])
 
   return {
-    members, abons, payments, manualDebts, users, auditLog, shifts, pushShifts, myTerms, loading,
+    members, abons, payments, manualDebts, users, auditLog, shifts, pushShifts, myTerms, trainers, loading,
     load, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,
-    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, unlinkCard,
+    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, unlinkCard, assignTrainer,
     setAbons, setMembers
   }
 }

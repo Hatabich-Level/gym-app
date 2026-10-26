@@ -291,6 +291,12 @@ app.get('/api/state', auth, async (req, res) => {
 
   // Власні умови оплати (відсоток/суми за зал) — потрібні кожному, хто
   // записує заняття, щоб розрахунок був за його індивідуальними умовами
+  // Список акаунтів (id, імʼя, роль) — для закріплення клієнтів за тренером
+  try {
+    const { rows: tr } = await pool.query('SELECT data FROM users');
+    out.trainers = tr.map(r => ({ id: r.data.id, name: r.data.name || r.data.login, role: r.data.role }));
+  } catch (e) { out.trainers = []; }
+
   if (req.user.uid) {
     const { rows: meRows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.user.uid]);
     if (meRows.length) {
@@ -335,6 +341,25 @@ async function upsert(table, items) {
 
 // Клієнти: створення дозволено owner+admin; редагування існуючого (зміна
 // імені/телефону) — лише owner. Тренер не може ні створювати, ні редагувати.
+// Закріпити клієнтів за тренером (trainerId = id акаунта) або зняти закріплення (trainerId = null)
+app.post('/api/members/assign-trainer', auth, anyAdmin, async (req, res) => {
+  const { memberIds, trainerId } = req.body || {};
+  if (!Array.isArray(memberIds) || !memberIds.length) return res.status(400).json({ error: 'memberIds обовʼязкові' });
+  if (trainerId) {
+    const { rows: tr } = await pool.query('SELECT id FROM users WHERE id = $1', [String(trainerId)]);
+    if (!tr.length) return res.status(404).json({ error: 'Тренера не знайдено' });
+  }
+  const { rows } = await pool.query('SELECT data FROM members WHERE id = ANY($1)', [memberIds.map(String)]);
+  const updated = rows.map(r => {
+    const m = r.data;
+    if (trainerId) m.trainerId = String(trainerId); else delete m.trainerId;
+    return m;
+  });
+  if (updated.length) await upsert('members', updated);
+  await logAction(req, 'assign_trainer', { count: updated.length, trainerId: trainerId || null });
+  res.json({ ok: true, members: updated });
+});
+
 // Відв'язати NFC-картку від клієнта (напр. картку втрачено/замінено)
 app.post('/api/members/:id/unlink-card', auth, anyAdmin, async (req, res) => {
   const { rows } = await pool.query('SELECT data FROM members WHERE id = $1', [req.params.id]);
