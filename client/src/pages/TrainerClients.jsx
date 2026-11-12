@@ -46,8 +46,14 @@ function TrainerChip({ info }) {
   return <span className="ai-tag tag-gray">🎫 Тренер: немає</span>
 }
 
-export default function TrainerClients({ members, abons, trainers, role, uid, assignTrainer, onOpen }) {
+export default function TrainerClients({ members, abons, trainers: allAccounts, role, uid, assignTrainer, onOpen }) {
   const isTrainerRole = role === 'trainer'
+  // Сервер віддає всі акаунти. У вкладках показуємо лише тренерів, а також
+  // тих адмінів/власника, за ким уже закріплені клієнти (щоб ті не "зникли").
+  const trainers = useMemo(() => {
+    const used = new Set(members.map(m => m.trainerId).filter(Boolean))
+    return allAccounts.filter(t => t.role === 'trainer' || used.has(t.id))
+  }, [allAccounts, members])
   const [selTrainer, setSelTrainer] = useState(null)
   const [query, setQuery] = useState('')
   const [showAdd, setShowAdd] = useState(false)

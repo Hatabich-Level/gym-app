@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { TODAY, fmtDate, uid, nowTime, getActiveAbon, getMemberDebt } from '../utils'
+import { TODAY, fmtDate, uid, nowTime, getActiveAbon, getMemberDebt, isExtensionPayment } from '../utils'
 import { MethodPill, Tabs, Empty, Ava } from '../components/UI'
 import { api } from '../api'
 
@@ -16,7 +16,7 @@ export default function FinancePage({ members, abons, payments, manualDebts, rol
     <div className="pg">
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>💰 Фінанси</div>
       <Tabs tabs={FTABS} active={tab} onChange={setTab} />
-      {tab === 'payments' && <PaymentsTab payments={payments} members={members} abons={abons} role={role} uname={uname} deletePayment={deletePayment} pushPayment={pushPayment} />}
+      {tab === 'payments' && <PaymentsTab payments={payments} members={members} abons={abons} role={role} uname={uname} deletePayment={deletePayment} pushPayment={pushPayment} pushAbons={pushAbons} />}
       {tab === 'debts' && <DebtsTab manualDebts={manualDebts} members={members} abons={abons} payments={payments} role={role} saveManualDebt={saveManualDebt} payManualDebt={payManualDebt} deleteManualDebt={deleteManualDebt} pushAbons={pushAbons} pushPayment={pushPayment} />}
       {tab === 'export' && <ExportTab payments={payments} abons={abons} role={role} users={users} shifts={shifts} pushShifts={pushShifts} />}
     </div>
@@ -66,7 +66,7 @@ function MonthlyBarChart({ data }) {
   )
 }
 
-function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pushPayment }) {
+function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pushPayment, pushAbons }) {
   const [editPayment, setEditPayment] = useState(null)
   const [showAllMoneyMonths, setShowAllMoneyMonths] = useState(false)
   const [showAllAbonMonths, setShowAllAbonMonths] = useState(false)
@@ -289,6 +289,8 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
     {editPayment && (
       <EditPaymentModal
         payment={editPayment}
+        abons={abons}
+        pushAbons={pushAbons}
         pushPayment={pushPayment}
         onClose={() => setEditPayment(null)}
       />
@@ -297,7 +299,7 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
 }
 
 // ── Edit payment modal ────────────────────────────────────────────────────────
-function EditPaymentModal({ payment, pushPayment, onClose }) {
+function EditPaymentModal({ payment, abons, pushAbons, pushPayment, onClose }) {
   const isSession = payment.kind === 'session'
   const [trainerEarning, setTrainerEarning] = useState(payment.trainerEarning ?? 0)
   const [hallEarning, setHallEarning] = useState(payment.hallEarning ?? 0)
@@ -322,6 +324,13 @@ function EditPaymentModal({ payment, pushPayment, onClose }) {
         updated.method = method
       }
       await pushPayment(updated)
+      // Змінили суму платежу за абонемент — на стільки ж змінюємо "оплачено"
+      // в абонементі, щоб борг клієнта перерахувався
+      const delta = isSession ? 0 : updated.amount - (payment.amount || 0)
+      if (delta && payment.kind === 'abon' && payment.abonId && !isExtensionPayment(payment)) {
+        const ab = (abons || []).find(a => a.id === payment.abonId)
+        if (ab && pushAbons) await pushAbons([{ ...ab, paid: Math.max(0, (ab.paid || 0) + delta) }])
+      }
       onClose()
     } finally {
       setSaving(false)
@@ -582,7 +591,7 @@ function DebtModal({ members, existing, onSave, onClose }) {
   const [name, setName] = useState(existing?.name || '')
   const [desc, setDesc] = useState(existing?.description || '')
   const [total, setTotal] = useState(String(existing?.totalAmount || ''))
-  const [remaining, setRemaining] = useState(String(existing?.remaining || ''))
+  const [remaining, setRemaining] = useState(existing ? String(existing.remaining ?? '') : '')
   const [memberId, setMemberId] = useState(existing?.memberId || '')
   const [search, setSearch] = useState(existing?.name || '')
   const results = useMemo(() => {
@@ -593,7 +602,9 @@ function DebtModal({ members, existing, onSave, onClose }) {
 
   function save() {
     if (!name.trim()) { alert('Введіть ім\'я'); return }
-    const t = parseFloat(total)||0, r = parseFloat(remaining)||t
+    // Порожній залишок = вся сума; явний 0 = борг погашено
+    const t = parseFloat(total)||0
+    const r = String(remaining).trim() === '' ? t : Math.max(0, parseFloat(remaining)||0)
     onSave({ id: existing?.id || uid(), name: name.trim(), description: desc, totalAmount: t, remaining: r, memberId: memberId||null, payments: existing?.payments||[] })
   }
 

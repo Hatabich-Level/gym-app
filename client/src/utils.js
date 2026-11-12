@@ -1,4 +1,26 @@
-export const TODAY = new Date().toISOString().slice(0, 10)
+// Усі дати — за київським часом (як і на сервері), незалежно від часового
+// поясу пристрою. 'Europe/Kiev' — стара назва поясу, її знають усі браузери.
+const TZ = 'Europe/Kiev'
+const pad2 = n => String(n).padStart(2, '0')
+
+function kyivToday() {
+  try {
+    return new Date().toLocaleDateString('sv-SE', { timeZone: TZ })
+  } catch {
+    const d = new Date()
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  }
+}
+
+// TODAY — "живе" значення: App періодично викликає refreshToday(), щоб після
+// півночі застосунок, який не закривали, не писав відмітки вчорашньою датою.
+export let TODAY = kyivToday()
+export function refreshToday() {
+  const t = kyivToday()
+  if (t === TODAY) return false
+  TODAY = t
+  return true
+}
 
 export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
@@ -11,9 +33,14 @@ export function fmtDate(s) {
 }
 
 export function addCalMonths(dateStr, months) {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setMonth(d.getMonth() + months)
-  return d.toISOString().slice(0, 10)
+  // Рахуємо по календарю без часових поясів; якщо в цільовому місяці немає
+  // такого числа (31 січня + 1 міс.) — беремо останній день місяця
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const total = (m - 1) + months
+  const ny = y + Math.floor(total / 12)
+  const nm = ((total % 12) + 12) % 12
+  const last = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate()
+  return `${ny}-${pad2(nm + 1)}-${pad2(Math.min(d, last))}`
 }
 
 export function esc(s) {
@@ -22,8 +49,9 @@ export function esc(s) {
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 export function addDays(s, n) {
-  const d = new Date(s)
-  d.setDate(d.getDate() + n)
+  // Суто в UTC — інакше при переході на літній час губився один день
+  const d = new Date(s.slice(0, 10) + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
   return d.toISOString().slice(0, 10)
 }
 export function daysDiff(a, b) {
@@ -84,6 +112,12 @@ export function visitedTodayAny(memberId, abons) {
   return abons.some(a => a.memberId === memberId && !a.deleted && a.visits && a.visits.some(v => v.date === TODAY))
 }
 
+// Платіж за продовження абонемента — це плата за новий період, а не погашення
+// боргу за поточний. Старі записи без прапорця впізнаємо за приміткою.
+export function isExtensionPayment(p) {
+  return !!p && (p.extension === true || String(p.note || '').startsWith('продовження'))
+}
+
 // ── Member debt (борг по абонементу) ─────────────────────────────────────────
 export function getMemberDebt(memberId, abons, payments) {
   const ab = getActiveAbon(memberId, abons)
@@ -92,7 +126,7 @@ export function getMemberDebt(memberId, abons, payments) {
   // 1) через payments з abonId (нові записи)
   // 2) через поле ab.paid (пряме оновлення абонементу)
   const paidViaPayments = payments
-    .filter(p => p.memberId === memberId && p.abonId === ab.id)
+    .filter(p => p.memberId === memberId && p.abonId === ab.id && !isExtensionPayment(p))
     .reduce((s, p) => s + (p.amount || 0), 0)
   const paidViaPaid = ab.paid || 0
   const totalPaid = Math.max(paidViaPayments, paidViaPaid)
@@ -139,5 +173,9 @@ export function sumByMethod(payments, method) {
 }
 
 export function nowTime() {
-  return new Date().toTimeString().slice(0, 5)
+  try {
+    return new Date().toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return new Date().toTimeString().slice(0, 5)
+  }
 }

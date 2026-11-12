@@ -6,10 +6,11 @@ import MemberDetail from './pages/MemberDetail'
 import CheckinPage from './pages/CheckinPage'
 import SessionsPage from './pages/SessionsPage'
 import FinancePage from './pages/FinancePage'
-import TrainerClients from './pages/TrainerСlients'
+import TrainerClients from './pages/TrainerClients'
+import { api } from './api'
 import { LoadingOverlay, ReminderBanner, Tabs, Modal, FRow } from './components/UI'
 import { useStore } from './hooks/useStore'
-import { uid, abonStatus, getActiveAbon, daysDiff, TODAY } from './utils'
+import { uid, abonStatus, getActiveAbon, daysDiff, TODAY, refreshToday, isExtensionPayment } from './utils'
 
 const PAGES = ['home', 'members', 'checkin', 'sessions', 'finance']
 
@@ -24,20 +25,43 @@ export default function App() {
   const [memberDetailId, setMemberDetailId] = useState(null)
   const [membersInitialTab, setMembersInitialTab] = useState('all')
   const [reminderDismissed, setReminderDismissed] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [, setDayTick] = useState(0)
 
   const store = useStore()
 
   const isLoggedIn = !!auth.token && !!auth.role
 
-  // Load data on login
+  // Load data on login.
+  // Прострочений токен (401) обробляє api.js — чистить сесію і перезавантажує.
+  // Будь-яка інша помилка (немає мережі, сервер ще прокидається) — не привід
+  // розлогінювати: показуємо повідомлення з кнопкою "Повторити".
+  function loadData() {
+    setLoadError('')
+    return store.load().catch(e => setLoadError(e.message || 'Помилка мережі'))
+  }
   useEffect(() => {
-    if (isLoggedIn) {
-      store.load().catch(() => {
-        // Token expired
-        handleLogout()
-      })
-    }
+    if (isLoggedIn) loadData()
   }, [isLoggedIn])
+
+  // Раз на хвилину і при поверненні в застосунок: оновлюємо "сьогодні"
+  // (після півночі) і тихо підтягуємо зміни з інших пристроїв.
+  useEffect(() => {
+    if (!isLoggedIn) return
+    function sync() {
+      if (document.visibilityState !== 'visible') return
+      if (refreshToday()) setDayTick(t => t + 1)
+      store.refresh()
+    }
+    const interval = setInterval(sync, 60000)
+    document.addEventListener('visibilitychange', sync)
+    window.addEventListener('focus', sync)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', sync)
+      window.removeEventListener('focus', sync)
+    }
+  }, [isLoggedIn, store.refresh])
 
   // Trainer goes to sessions by default
   useEffect(() => {
@@ -147,6 +171,17 @@ export default function App() {
     }
   }
 
+  // Видалення платежу за абонемент має повертати борг: зменшуємо ab.paid на
+  // суму платежу (платежі за продовження в paid не входять — їх не чіпаємо).
+  async function deletePayment(id) {
+    const p = store.payments.find(x => x.id === id)
+    await store.deletePayment(id)
+    if (p && p.kind === 'abon' && p.abonId && !isExtensionPayment(p)) {
+      const ab = store.abons.find(a => a.id === p.abonId)
+      if (ab && ab.paid) await store.pushAbons([{ ...ab, paid: Math.max(0, (ab.paid || 0) - (p.amount || 0)) }])
+    }
+  }
+
   async function onAddMember() {
     // open blank detail
     setMemberDetailId('__new__')
@@ -197,6 +232,13 @@ export default function App() {
     <>
       <LoadingOverlay show={store.loading} />
 
+      {loadError && (
+        <div style={{ background: 'rgba(255,51,102,.1)', border: '1px solid rgba(255,51,102,.35)', color: 'var(--red)', padding: '10px 14px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span>⚠️ Не вдалося завантажити дані: {loadError}</span>
+          <button className="btn-sm" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt)', borderRadius: 8, padding: '6px 10px', flexShrink: 0 }} onClick={loadData}>Повторити</button>
+        </div>
+      )}
+
       {/* Reminder banner */}
       {isAdmin && endingCount > 0 && !reminderDismissed && page !== 'members' && (
         <ReminderBanner
@@ -216,7 +258,7 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button
               style={{ background: 'none', border: '1px solid var(--brd)', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: 'var(--txt2)', display: 'flex', alignItems: 'center' }}
-              onClick={() => store.load()}
+              onClick={loadData}
               title="Оновити"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -247,7 +289,7 @@ export default function App() {
           onDeleteMember={async (id) => { await store.deleteMember(id) }}
           pushAbons={store.pushAbons}
           pushPayment={store.pushPayment}
-          deletePayment={store.deletePayment}
+          deletePayment={deletePayment}
           unlinkCard={store.unlinkCard}
           loading={store.loading}
         />
@@ -336,7 +378,7 @@ export default function App() {
               users={store.users}
               shifts={store.shifts}
               pushShifts={store.pushShifts}
-              deletePayment={store.deletePayment}
+              deletePayment={deletePayment}
               saveManualDebt={store.saveManualDebt}
               payManualDebt={store.payManualDebt}
               deleteManualDebt={store.deleteManualDebt}
@@ -421,8 +463,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
     if (!confirm('Скинути всі абонементи? Платежі залишаться.')) return
     setLoading(true)
     try {
-      const token = localStorage.getItem('gym_token') || ''
-      await fetch('/api/abons/reset', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } })
+      await api('/abons/reset', 'POST') // кидає помилку, якщо сервер відмовив
       await onReset()
       alert('✅ Абонементи скинуто')
     } finally { setLoading(false) }
@@ -432,8 +473,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
     if (!confirm('Скинути всі платежі?')) return
     setLoading(true)
     try {
-      const token = localStorage.getItem('gym_token') || ''
-      await fetch('/api/payments/reset', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } })
+      await api('/payments/reset', 'POST')
       await onReset()
       alert('✅ Касу скинуто')
     } finally { setLoading(false) }
@@ -444,8 +484,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
     if (!confirm('Ви впевнені? Це незворотно!')) return
     setLoading(true)
     try {
-      const token = localStorage.getItem('gym_token') || ''
-      await fetch('/api/reset/all', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } })
+      await api('/reset/all', 'POST')
       await onReset()
       alert('✅ Все скинуто')
     } finally { setLoading(false) }

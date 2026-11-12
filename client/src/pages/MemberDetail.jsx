@@ -656,7 +656,7 @@ function ExtendAbonModal({ abon, memberId, memberName, onSave, onClose }) {
       : abon
     let payment = null
     if (p > 0) {
-      payment = { id: uid(), kind: 'abon', memberId, memberName, abonId: abon.id, date: TODAY, time: nowTime(), amount: p, method, note: `продовження ${dur} міс.` }
+      payment = { id: uid(), kind: 'abon', memberId, memberName, abonId: abon.id, date: TODAY, time: nowTime(), amount: p, method, extension: true, note: `продовження ${dur} міс.` }
     }
     onSave(updated, payment)
   }
