@@ -351,7 +351,17 @@ app.get('/api/state', auth, async (req, res) => {
   // Список акаунтів (id, імʼя, роль) — для закріплення клієнтів за тренером
   try {
     const { rows: tr } = await pool.query('SELECT data FROM users');
-    out.trainers = tr.map(r => ({ id: r.data.id, name: r.data.name || r.data.login, role: r.data.role }));
+    const isAdminRole = req.user.role !== 'trainer';
+    out.trainers = tr.map(r => {
+      const t = { id: r.data.id, name: r.data.name || r.data.login, role: r.data.role };
+      // Адміну потрібні умови кожного тренера, щоб записати заняття за нього
+      if (isAdminRole && r.data.role === 'trainer') {
+        t.trainerPct = r.data.trainerPct;
+        t.hallFee = r.data.hallFee;
+        t.splitHallFee = r.data.splitHallFee;
+      }
+      return t;
+    });
   } catch (e) { out.trainers = []; }
 
   if (req.user.uid) {

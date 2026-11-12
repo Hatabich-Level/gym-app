@@ -14,10 +14,31 @@ function MethodToggle({ value, onChange }) {
   )
 }
 
-export default function SessionsPage({ members, abons, payments, role, uname, myTerms, pushAbons, pushPayment }) {
-  // Індивідуальні умови цього тренера (відсоток і суми за зал).
+export default function SessionsPage({ members, abons, payments, role, uname, myTerms, trainers, pushAbons, pushPayment }) {
+  // Адмін записує заняття за конкретного тренера — кошти йдуть в його касу
+  const isAdminView = role !== 'trainer'
+  const trainerList = useMemo(() => (trainers || []).filter(t => t.role === 'trainer'), [trainers])
+  const [trainerId, setTrainerId] = useState('')
+  const selTrainer = isAdminView ? trainerList.find(t => t.id === trainerId) || null : null
+
+  // Індивідуальні умови тренера (відсоток і суми за зал).
   // Якщо не задані — беруться загальні значення.
-  const terms = trainerTerms(myTerms)
+  const terms = trainerTerms(isAdminView ? selTrainer : myTerms)
+  const trainerName = isAdminView
+    ? (selTrainer ? selTrainer.name : (uname || 'Адмін'))
+    : (uname || 'Тренер')
+  function requireTrainer() {
+    if (isAdminView && trainerList.length > 0 && !selTrainer) { alert('Виберіть тренера, який проводив заняття'); return false }
+    return true
+  }
+  const trainerSelect = (label) => (isAdminView && trainerList.length > 0) ? (
+    <FRow label={label}>
+      <select value={trainerId} onChange={e => setTrainerId(e.target.value)}>
+        <option value="">— виберіть тренера —</option>
+        {trainerList.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </select>
+    </FRow>
+  ) : null
   const FEE = terms.fee
   const SPLIT_FEE = terms.splitFee
 
@@ -105,10 +126,11 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
     const trainerTotal = payingCount * per
     const hallTotal = hallPayingCount * SPLIT_FEE
     return { per, count, payingCount, hallPayingCount, trainerTotal, hallTotal }
-  }, [splitClients, splitAmount])
+  }, [splitClients, splitAmount, SPLIT_FEE])
 
   // ── Save solo ─────────────────────────────────────────────────────────────────
   async function saveSolo() {
+    if (!requireTrainer()) return
     const name = clientName || searchQ.trim()
     if (!name) { alert('Виберіть клієнта або введіть ім\'я'); return }
     const trainerPrice = parseFloat(amount) || 0
@@ -134,7 +156,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
     const p = {
       id: uid(), kind: 'session', sessionType: 'solo',
       memberId: clientId || null, memberName: name,
-      trainer: uname || (role === 'trainer' ? 'Тренер' : 'Адмін'),
+      trainer: trainerName,
       date: sessionDate, time: nowTime(),
       amount: totalAmount, trainerPrice, trainerEarning, hallEarning,
       method, hallMethod: useAbon ? 'cash' : (role === 'trainer' ? null : hallMethod), note, trainerAbonId
@@ -143,7 +165,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
     if (abonsChanged.length) await pushAbons(abonsChanged)
     await pushPayment(p)
 
-    alert(`✅ Записано! ${useAbon ? 'Списано з абонементу' : `Клієнт: ${totalAmount} грн · Каса тренера: ${trainerEarning} грн`}`)
+    alert(`✅ Записано! ${useAbon ? 'Списано з абонементу' : `Клієнт: ${totalAmount} грн · Каса тренера (${trainerName}): ${trainerEarning} грн`}`)
     clearClient(); setAmount(''); setNote('')
     setMethod('cash'); setHallMethod('cash')
     setDateMode('today'); setCustomDate('')
@@ -151,6 +173,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
 
   // ── Save split ────────────────────────────────────────────────────────────────
   async function saveSplit() {
+    if (!requireTrainer()) return
     if (splitClients.length < 2) { alert('Додайте мінімум 2 клієнти для спліту'); return }
     const perPerson = parseFloat(splitAmount) || 0
     const someonePaysCash = splitClients.some(c => !c.useAbon && !c.isTrainer)
@@ -187,7 +210,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
       splitClients: splitClients.map(c => c.name),
       splitDetails: clientDetails,
       memberName: splitClients.map(c => c.name).join(', '),
-      trainer: uname || (role === 'trainer' ? 'Тренер' : 'Адмін'),
+      trainer: trainerName,
       date: sessionDate, time: nowTime(),
       amount: hallTotal, hallEarning: hallTotal, trainerEarning: trainerTotal,
       splitCount: count, payingCount, perPerson,
@@ -199,7 +222,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
     await pushPayment(p)
 
     const abonNote = (count - payingCount) > 0 ? ` (${count - payingCount} з абонементу)` : ''
-    alert(`✅ Записано! Спліт ${count} ос. · Твоя каса: ${trainerTotal} грн · Залу: ${hallTotal} грн${abonNote}`)
+    alert(`✅ Записано! Спліт ${count} ос. · Каса тренера (${trainerName}): ${trainerTotal} грн · Залу: ${hallTotal} грн${abonNote}`)
 
     setSplitClients([]); setSplitSearch(''); setSplitAmount('')
     setSplitMethod('cash'); setSplitHallMethod('cash')
@@ -213,6 +236,9 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
 
       <div className="card">
         <div className="ct">Нове заняття</div>
+
+        {/* Хто тренував — тільки для адміна */}
+        {trainerSelect('Хто тренував')}
 
         {/* Тип */}
         <FRow label="Тип заняття">
@@ -456,6 +482,9 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
           uname={uname}
           role={role}
           terms={terms}
+          trainerName={trainerName}
+          requireTrainer={requireTrainer}
+          trainerPicker={trainerSelect('Тренер (чий абонемент)')}
           pushAbons={pushAbons}
           pushPayment={pushPayment}
           onClose={() => setShowAbonModal(false)}
@@ -573,7 +602,7 @@ function TodaySessionsBlock({ payments, uname, role }) {
 }
 
 // ── Trainer abon modal ────────────────────────────────────────────────────────
-function TrainerAbonModal({ members, abons, uname, role, terms, pushAbons, pushPayment, onClose }) {
+function TrainerAbonModal({ members, abons, uname, role, terms, trainerName, requireTrainer, trainerPicker, pushAbons, pushPayment, onClose }) {
   const [search, setSearch] = useState('')
   const [clientId, setClientId] = useState(null)
   const [clientName, setClientName] = useState('')
@@ -603,6 +632,7 @@ function TrainerAbonModal({ members, abons, uname, role, terms, pushAbons, pushP
   const hallEarning = Math.max(0, Math.round(total * (1 - pct)) - abonPrice)
 
   async function save() {
+    if (requireTrainer && !requireTrainer()) return
     if (!clientId && !search.trim()) { alert('Виберіть клієнта'); return }
     if (!trainerPrice) { alert('Вкажіть суму від клієнта'); return }
     const name = clientName || search.trim()
@@ -611,7 +641,7 @@ function TrainerAbonModal({ members, abons, uname, role, terms, pushAbons, pushP
       type: 'trainer', startDate: TODAY,
       totalSessions: sessions, sessionsLeft: sessions,
       price: trainerPrice, paid: trainerPrice, active: true,
-      trainer: uname || 'Тренер',
+      trainer: trainerName || uname || 'Тренер',
       abonPrice, trainerEarning, hallEarning
     }
     let payment = null
@@ -619,7 +649,7 @@ function TrainerAbonModal({ members, abons, uname, role, terms, pushAbons, pushP
       payment = {
         id: uid(), kind: 'trainer_abon',
         memberId: clientId, memberName: name,
-        trainer: uname || 'Тренер',
+        trainer: trainerName || uname || 'Тренер',
         date: TODAY, time: nowTime(),
         amount: hallEarning, trainerEarning, hallEarning,
         method: role === 'trainer' ? null : hallMethod,
@@ -644,6 +674,7 @@ function TrainerAbonModal({ members, abons, uname, role, terms, pushAbons, pushP
         <span style={{ fontWeight: 600, fontSize: 16 }}>Продати абонемент на заняття</span>
       </div>
       <div style={{ padding: 14 }}>
+        {trainerPicker}
         <FRow label="Клієнт">
           <input type="search" placeholder="Пошук або ім'я..." value={search}
             onChange={e => { setSearch(e.target.value); if (clientId) { setClientId(null); setClientName('') } }} />
