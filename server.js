@@ -9,11 +9,34 @@ const ExcelJS = require('exceljs');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Express 4 не ловить помилки з async-обробників: відхилений проміс стає
+// unhandledRejection і валить увесь процес. Тому обгортаємо кожен обробник —
+// помилка йде в next(err) і далі в загальний обробник помилок унизу файлу.
+for (const method of ['get', 'post', 'put', 'delete']) {
+  const orig = app[method].bind(app);
+  app[method] = (routePath, ...handlers) => orig(routePath, ...handlers.map(h => {
+    if (typeof h !== 'function' || h.length === 4) return h;
+    return (req, res, next) => {
+      try {
+        const r = h(req, res, next);
+        if (r && typeof r.catch === 'function') r.catch(next);
+      } catch (e) { next(e); }
+    };
+  }));
+}
+
 // Резервні паролі для самого першого старту (коли таблиця users ще порожня).
 // Після першого входу рекомендується створити власні акаунти і змінити ці паролі.
 const ADMIN_PASSWORD   = process.env.ADMIN_PASSWORD   || 'admin123';
 const TRAINER_PASSWORD = process.env.TRAINER_PASSWORD || 'trener123';
-const SECRET           = process.env.SECRET || 'change-me-secret';
+// Без SECRET будь-хто міг би підробити токен власника, знаючи запасне значення
+// з коду. Тому, якщо змінну не задано, генеруємо випадковий ключ на час роботи
+// процесу: вхід працює, але після кожного перезапуску сервера треба входити знову.
+let SECRET = process.env.SECRET;
+if (!SECRET) {
+  SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn('⚠️ Змінну SECRET не задано — використовується тимчасовий ключ. Після перезапуску сервера всім доведеться увійти знову. Додайте SECRET у змінні середовища.');
+}
 
 if (!process.env.DATABASE_URL) {
   console.error('❌ Немає DATABASE_URL. Додайте PostgreSQL базу даних.');
@@ -32,6 +55,9 @@ app.use(express.json({ limit: '5mb' }));
 // коли з'являється новіша версія.
 const BUILD_VERSION = String(Date.now());
 app.get('/api/version', (req, res) => res.json({ version: BUILD_VERSION }));
+
+// Має бути ДО SPA-fallback нижче, інакше замість "ok" віддавався б index.html
+app.get('/healthz', (req, res) => res.send('ok'));
 
 // Статичні файли: хешовані бандли (assets/*) кешуються назавжди (їхня назва
 // міняється при кожній зміні вмісту), а index.html — ніколи не кешується,
@@ -86,11 +112,18 @@ function verify(token) {
     return payload;
   } catch { return null; }
 }
-function auth(req, res, next) {
+// Токен живе 30 днів, тому на кожен запит звіряємось з базою: видалений акаунт
+// або змінений пароль одразу роблять старий токен недійсним, а роль та імʼя
+// беруться актуальні з бази, а не ті, що були на момент входу.
+async function auth(req, res, next) {
   const token = (req.headers.authorization || '').replace('Bearer ', '');
-  const user = verify(token);
-  if (!user) return res.status(401).json({ error: 'unauthorized' });
-  req.user = user;
+  const t = verify(token);
+  if (!t || !t.uid) return res.status(401).json({ error: 'unauthorized' });
+  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [String(t.uid)]);
+  const u = rows[0] && rows[0].data;
+  if (!u) return res.status(401).json({ error: 'unauthorized' });
+  if (u.pwdAt && (t.iat || 0) < u.pwdAt) return res.status(401).json({ error: 'unauthorized' });
+  req.user = { uid: u.id, role: u.role, name: u.name || '' };
   next();
 }
 // Тільки головний адмін (owner)
@@ -108,10 +141,15 @@ function anyAdmin(req, res, next) {
 // Пристрої — не люди, тож замість логіну/пароля й JWT у них простий
 // секретний ключ, зашитий у прошивку і збіжний зі змінною середовища
 // DEVICE_KEY на сервері (Render → Environment).
-const DEVICE_KEY = process.env.DEVICE_KEY || 'change-me-device-key';
+// Запасного значення немає: якщо DEVICE_KEY не задано — маршрути пристроїв
+// вимкнені (інакше будь-хто з ключем із коду міг би відмічати відвідування).
+const DEVICE_KEY = process.env.DEVICE_KEY || '';
+if (!DEVICE_KEY) console.warn('⚠️ Змінну DEVICE_KEY не задано — NFC-пристрої не зможуть підключитись. Додайте DEVICE_KEY у змінні середовища.');
 function deviceAuth(req, res, next) {
-  const key = req.headers['x-device-key'] || '';
-  if (!key || key !== DEVICE_KEY) return res.status(401).json({ error: 'invalid device key' });
+  const key = String(req.headers['x-device-key'] || '');
+  const a = crypto.createHash('sha256').update(key).digest();
+  const b = crypto.createHash('sha256').update(DEVICE_KEY).digest();
+  if (!DEVICE_KEY || !key || !crypto.timingSafeEqual(a, b)) return res.status(401).json({ error: 'invalid device key' });
   next();
 }
 
@@ -158,6 +196,7 @@ app.post('/api/login', async (req, res) => {
 
   const token = sign({
     uid: user.id, role: user.role, name: user.name || '',
+    iat: Date.now(),
     exp: Date.now() + 1000 * 60 * 60 * 24 * 30
   });
   res.json({ token, role: user.role, name: user.name || '', login: user.login, uid: user.id });
@@ -178,6 +217,15 @@ async function logAction(req, action, details) {
     at: new Date().toISOString()
   };
   try { await upsert('audit_log', [entry]); } catch (e) { console.error('audit log error:', e); }
+}
+
+// Старі записи сплітів зберігали частку залу лише в amount, без hallEarning,
+// через що каса залу для них рахувалась як 0. Доповнюємо при читанні.
+function normPayment(p) {
+  if (p && p.kind === 'session' && p.sessionType === 'split' && p.hallEarning == null) {
+    return { ...p, hallEarning: p.amount || 0 };
+  }
+  return p;
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -284,10 +332,19 @@ app.get('/api/state', auth, async (req, res) => {
     name: req.user.name || '',
     members:      m.rows.map(r => r.data),
     abons:        a.rows.map(r => r.data),
-    payments:     p.rows.map(r => r.data),
+    payments:     p.rows.map(r => normPayment(r.data)),
     manualDebts:  md.rows.map(r => r.data),
     shifts:       sh.rows.map(r => r.data),
   };
+
+  // Тренеру не віддаємо фінанси залу: лише платежі за клубні абонементи
+  // (потрібні для показу боргу клієнта) і власні заняття/продані абонементи.
+  if (req.user.role === 'trainer') {
+    const myName = req.user.name || 'Тренер';
+    out.payments = out.payments.filter(x =>
+      x.kind === 'abon' || ((x.kind === 'session' || x.kind === 'trainer_abon') && x.trainer === myName));
+    out.manualDebts = [];
+  }
 
   // Власні умови оплати (відсоток/суми за зал) — потрібні кожному, хто
   // записує заняття, щоб розрахунок був за його індивідуальними умовами
@@ -399,8 +456,21 @@ app.post('/api/members/bulk', auth, anyAdmin, async (req, res) => {
     }
   }
 
+  // cardId і trainerId змінюються лише окремими маршрутами (NFC-записувач,
+  // відв'язка картки, закріплення за тренером). Клієнт міг надіслати стару
+  // копію без них — тому для існуючих клієнтів беремо ці поля з бази.
+  const { rows: curRows } = await pool.query('SELECT id, data FROM members WHERE id = ANY($1)', [items.map(it => String(it.id))]);
+  const cur = new Map(curRows.map(r => [r.id, r.data]));
+  for (const it of items) {
+    const prev = cur.get(String(it.id));
+    if (!prev) continue;
+    for (const k of ['cardId', 'trainerId']) {
+      if (prev[k] !== undefined) it[k] = prev[k]; else delete it[k];
+    }
+  }
+
   await upsert('members', items);
-  res.json({ ok: true });
+  res.json({ ok: true, items });
 });
 
 // Видалити декілька клієнтів — тільки адмін (має бути ДО /:id)
@@ -461,7 +531,7 @@ app.post('/api/abons/bulk', auth, async (req, res) => {
       // - type==='trainer': дозволено змінювати visits, sessionsLeft, active
       // - інші: дозволено змінювати тільки visits і active (відмітка відвідування)
       const allowedDiffKeys = it.type === 'trainer'
-        ? new Set(['visits', 'sessionsLeft', 'active'])
+        ? new Set(['visits', 'sessionsLeft', 'active', 'totalSessions', 'bonusLog']) // + додані заняття "з поважної причини"
         : new Set(['visits', 'active']);
       for (const key of Object.keys(it)) {
         const same = JSON.stringify(it[key]) === JSON.stringify(prev[key]);
@@ -487,8 +557,25 @@ app.post('/api/abons/bulk', auth, async (req, res) => {
     }
   }
 
+  // Відвідування лише додаються (ніде не видаляються поодинці). Якщо клієнт
+  // надіслав стару копію абонемента, у якій бракує візитів, що вже є в базі
+  // (напр. їх додав NFC-зчитувач або інший пристрій), — зберігаємо їх.
+  const { rows: curRows } = await pool.query('SELECT id, data FROM abons WHERE id = ANY($1)', [items.map(it => String(it.id))]);
+  const cur = new Map(curRows.map(r => [r.id, r.data]));
+  const visitKey = v => [v.date, v.time, v.by].join('|');
+  for (const it of items) {
+    const prev = cur.get(String(it.id));
+    if (!prev || !Array.isArray(prev.visits) || !prev.visits.length) continue;
+    const have = new Set((it.visits || []).map(visitKey));
+    const missing = prev.visits.filter(v => !have.has(visitKey(v)));
+    if (missing.length) {
+      it.visits = [...missing, ...(it.visits || [])].sort((a, b) =>
+        ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
+    }
+  }
+
   await upsert('abons', items);
-  res.json({ ok: true });
+  res.json({ ok: true, items });
 });
 
 // Зміни (хто на зміні по днях) — вручну проставляється в застосунку,
@@ -511,9 +598,24 @@ app.post('/api/payments', auth, async (req, res) => {
   const normMethod = v => (v === 'card' ? 'card' : v === 'cash' ? 'cash' : null);
   p.method = normMethod(p.method);
   p.hallMethod = normMethod(p.hallMethod);
-  p.by = req.user.role + (req.user.name ? ':' + req.user.name : '');
+
+  const { rows: prevRows } = await pool.query('SELECT data FROM payments WHERE id = $1', [String(p.id)]);
+  const prev = prevRows[0] && prevRows[0].data;
+
+  // Тренер може лише створювати записи про свої заняття/абонементи. Змінювати
+  // існуючі платежі і самому підтверджувати "тренер→зал" він не може.
+  if (req.user.role === 'trainer') {
+    if (prev) return res.status(403).json({ error: 'Змінювати платежі може лише адміністратор' });
+    if (p.kind !== 'session' && p.kind !== 'trainer_abon') return res.status(403).json({ error: 'forbidden' });
+    if (p.kind === 'session' && (Number(p.hallEarning) || 0) > 0) p.hallMethod = null;
+    if (p.kind === 'trainer_abon') p.method = null;
+  }
+
+  // Автор — той, хто створив запис. Підтвердження/редагування адміном його не
+  // змінює (інакше в експорті автор і колір дня ставали адміновими).
+  p.by = (prev && prev.by) ? prev.by : req.user.role + (req.user.name ? ':' + req.user.name : '');
   await upsert('payments', [p]);
-  res.json({ ok: true });
+  res.json({ ok: true, payment: p });
 });
 
 // Скинути абонементи — тільки адмін
@@ -572,8 +674,8 @@ app.post('/api/manual-debts/:id/pay', auth, anyAdmin, async (req, res) => {
   d.remaining = Math.max(0, (d.remaining || 0) - amount);
   d.payments  = d.payments || [];
   d.payments.push({
-    date: new Date().toISOString().slice(0, 10),
-    time: new Date().toTimeString().slice(0, 5),
+    date: TODAY_STR(),
+    time: NOW_TIME(),
     amount, method, note,
     by: req.user.role + (req.user.name ? ':' + req.user.name : '')
   });
@@ -586,8 +688,8 @@ app.post('/api/manual-debts/:id/pay', auth, anyAdmin, async (req, res) => {
     kind: 'manual_debt',
     manualDebtId: d.id,
     memberName: d.name,
-    date: new Date().toISOString().slice(0, 10),
-    time: new Date().toTimeString().slice(0, 5),
+    date: TODAY_STR(),
+    time: NOW_TIME(),
     amount, method,
     note: (note ? note + ' · ' : '') + 'борг: ' + d.name,
     by: req.user.role + (req.user.name ? ':' + req.user.name : '')
@@ -691,6 +793,7 @@ app.post('/api/users/:id/password', auth, ownerOnly, async (req, res) => {
   if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
   const user = rows[0].data;
   user.passwordHash = hashPassword(password);
+  user.pwdAt = Date.now(); // усі токени, видані раніше, стають недійсними
   await upsert('users', [user]);
   await logAction(req, 'user_password_change', { login: user.login });
   res.json({ ok: true });
@@ -712,7 +815,7 @@ const MONTH_NAMES = ['Січ','Лют','Бер','Кві','Тра','Черв','Л
 // Кольори "хто на зміні" беремо з акаунта автора запису (Налаштування →
 // Акаунти → колір), а не з фіксованої константи.
 
-app.get('/api/export/:year/:month', auth, async (req, res) => {
+app.get('/api/export/:year/:month', auth, anyAdmin, async (req, res) => {
   try {
     const year  = parseInt(req.params.year, 10);
     const month = parseInt(req.params.month, 10); // 1-12
@@ -741,7 +844,7 @@ app.get('/api/export/:year/:month', auth, async (req, res) => {
     const manualShiftByDate = new Map();
     shiftsAll.forEach(s => { if (s.by) manualShiftByDate.set(s.date, s.by); });
     const abons    = a.rows.map(r => r.data);
-    const payments = p.rows.map(r => r.data);
+    const payments = p.rows.map(r => normPayment(r.data));
 
     const daysInMonth = new Date(year, month, 0).getDate();
     const monthKey = year + '-' + String(month).padStart(2, '0');
@@ -1092,7 +1195,13 @@ app.get('/api/export/:year/:month', auth, async (req, res) => {
   }
 });
 
-app.get('/healthz', (req, res) => res.send('ok'));
+// Загальний обробник помилок — сервер відповідає 500 і працює далі
+app.use((err, req, res, next) => {
+  console.error('Request error:', req.method, req.originalUrl, err);
+  if (res.headersSent) return next(err);
+  const status = err.status >= 400 && err.status < 500 ? err.status : 500;
+  res.status(status).json({ error: status === 500 ? 'Помилка сервера' : 'Некоректний запит' });
+});
 
 initDb()
   .then(() => app.listen(PORT, () => console.log('🏋️ Сервер запущено на порту ' + PORT)))

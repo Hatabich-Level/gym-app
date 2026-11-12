@@ -189,7 +189,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
       memberName: splitClients.map(c => c.name).join(', '),
       trainer: uname || (role === 'trainer' ? 'Тренер' : 'Адмін'),
       date: sessionDate, time: nowTime(),
-      amount: hallTotal, trainerEarning: trainerTotal,
+      amount: hallTotal, hallEarning: hallTotal, trainerEarning: trainerTotal,
       splitCount: count, payingCount, perPerson,
       hallPerPerson: SPLIT_FEE,
       note, method: splitMethod, hallMethod: hallTotal === 0 ? 'cash' : (role === 'trainer' ? null : splitHallMethod)
@@ -455,6 +455,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
           abons={abons}
           uname={uname}
           role={role}
+          terms={terms}
           pushAbons={pushAbons}
           pushPayment={pushPayment}
           onClose={() => setShowAbonModal(false)}
@@ -572,7 +573,7 @@ function TodaySessionsBlock({ payments, uname, role }) {
 }
 
 // ── Trainer abon modal ────────────────────────────────────────────────────────
-function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment, onClose }) {
+function TrainerAbonModal({ members, abons, uname, role, terms, pushAbons, pushPayment, onClose }) {
   const [search, setSearch] = useState('')
   const [clientId, setClientId] = useState(null)
   const [clientName, setClientName] = useState('')
@@ -595,9 +596,11 @@ function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment,
   // Формула: ((trainerPrice + abonPrice) * 0.6) - abonPrice = наша частка
   const trainerPrice = parseFloat(price) || 0
   const total = trainerPrice + abonPrice
-  const trainerEarning = Math.max(0, Math.round(total * 0.6))
+  // Відсоток — з індивідуальних умов тренера (як і для разових занять), 60% за замовчуванням
+  const pct = (terms && terms.pct) || 0.6
+  const trainerEarning = Math.max(0, Math.round(total * pct))
   // Каса залу не може бути відʼємною — якщо за формулою мінус, показуємо 0
-  const hallEarning = Math.max(0, Math.round(total * 0.4) - abonPrice)
+  const hallEarning = Math.max(0, Math.round(total * (1 - pct)) - abonPrice)
 
   async function save() {
     if (!clientId && !search.trim()) { alert('Виберіть клієнта'); return }
@@ -679,7 +682,7 @@ function TrainerAbonModal({ members, abons, uname, role, pushAbons, pushPayment,
         {trainerPrice > 0 && (
           <div style={{ background: 'rgba(39,201,122,.08)', border: '1px solid rgba(39,201,122,.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, lineHeight: 1.9 }}>
             💰 Разом з абоном: <b>{total} грн</b> ({trainerPrice} + {abonPrice})<br />
-            💵 <span style={{ color: 'var(--grn)' }}>Каса тренера (60%): <b>{trainerEarning} грн</b></span><br />
+            💵 <span style={{ color: 'var(--grn)' }}>Каса тренера ({Math.round(pct * 100)}%): <b>{trainerEarning} грн</b></span><br />
             🏦 Залу: <b>{hallEarning} грн</b>
           </div>
         )}
