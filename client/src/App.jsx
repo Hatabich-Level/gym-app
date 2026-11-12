@@ -352,6 +352,7 @@ export default function App() {
               role={role}
               uname={uname}
               myTerms={store.myTerms}
+              trainers={store.trainers}
               pushAbons={store.pushAbons}
               pushPayment={store.pushPayment}
             />
