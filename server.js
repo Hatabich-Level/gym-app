@@ -48,6 +48,7 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
 });
 
+app.use('/api/backups/restore-file', express.json({ limit: '40mb' }));
 app.use(express.json({ limit: '5mb' }));
 
 // Версія білда — унікальна щоразу, коли сервер стартує (тобто після кожного
@@ -123,7 +124,11 @@ async function auth(req, res, next) {
   const u = rows[0] && rows[0].data;
   if (!u) return res.status(401).json({ error: 'unauthorized' });
   if (u.pwdAt && (t.iat || 0) < u.pwdAt) return res.status(401).json({ error: 'unauthorized' });
-  req.user = { uid: u.id, role: u.role, name: u.name || '' };
+  req.user = { uid: u.id, role: u.role, name: u.name || '', readOnly: !!u.readOnly && u.role !== 'owner' };
+  // Режим «лише перегляд»: будь-яка зміна даних заборонена на рівні сервера
+  if (req.user.readOnly && req.method !== 'GET') {
+    return res.status(403).json({ error: 'Ваш акаунт у режимі «лише перегляд» — змінювати дані не можна' });
+  }
   next();
 }
 // Тільки головний адмін (owner)
@@ -163,6 +168,7 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS users         (id TEXT PRIMARY KEY, data JSONB NOT NULL);
     CREATE TABLE IF NOT EXISTS audit_log     (id TEXT PRIMARY KEY, data JSONB NOT NULL);
     CREATE TABLE IF NOT EXISTS shifts        (id TEXT PRIMARY KEY, data JSONB NOT NULL);
+    CREATE TABLE IF NOT EXISTS backups       (id TEXT PRIMARY KEY, data JSONB NOT NULL);
   `);
 
   // Перший старт: якщо в таблиці users ще нікого немає — засіваємо
@@ -353,7 +359,7 @@ app.get('/api/state', auth, async (req, res) => {
     const { rows: tr } = await pool.query('SELECT data FROM users');
     const isAdminRole = req.user.role !== 'trainer';
     out.trainers = tr.map(r => {
-      const t = { id: r.data.id, name: r.data.name || r.data.login, role: r.data.role };
+      const t = { id: r.data.id, name: r.data.name || r.data.login, role: r.data.role, color: r.data.color || null };
       // Адміну потрібні умови кожного тренера, щоб записати заняття за нього
       if (isAdminRole && r.data.role === 'trainer') {
         t.trainerPct = r.data.trainerPct;
@@ -368,6 +374,7 @@ app.get('/api/state', auth, async (req, res) => {
     const { rows: meRows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.user.uid]);
     if (meRows.length) {
       const me = meRows[0].data;
+      out.readOnly = !!me.readOnly && me.role !== 'owner';
       out.myTerms = {
         trainerPct: me.trainerPct,
         hallFee: me.hallFee,
@@ -760,6 +767,18 @@ app.post('/api/users/:id/color', auth, ownerOnly, async (req, res) => {
   user.color = color;
   await upsert('users', [user]);
   res.json({ ok: true, color });
+});
+
+// Режим «лише перегляд» для акаунта (owner не можна обмежити)
+app.post('/api/users/:id/readonly', auth, ownerOnly, async (req, res) => {
+  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
+  const user = rows[0].data;
+  if (user.role === 'owner') return res.status(400).json({ error: 'Головного адміна обмежити не можна' });
+  user.readOnly = !!(req.body && req.body.readOnly);
+  await upsert('users', [user]);
+  await logAction(req, 'user_readonly', { login: user.login, readOnly: user.readOnly });
+  res.json({ ok: true, readOnly: user.readOnly });
 });
 
 // Індивідуальні умови оплати тренера (відсоток і суми за зал)
@@ -1205,6 +1224,137 @@ app.get('/api/export/:year/:month', auth, anyAdmin, async (req, res) => {
   }
 });
 
+
+// ── Резервні копії ──────────────────────────────────────────────────────────
+// Копіюємо робочі дані (клієнти, абонементи, платежі, борги, зміни) — без акаунтів
+// і паролів. Раз на добу після 03:00 за Києвом створюється автокопія (зберігаємо
+// 14), власник може зробити копію вручну, завантажити її файлом і відновити.
+const BACKUP_TABLES = ['members', 'abons', 'payments', 'manual_debts', 'shifts'];
+
+async function snapshotData() {
+  const tables = {};
+  for (const t of BACKUP_TABLES) {
+    const { rows } = await pool.query(`SELECT data FROM ${t}`);
+    tables[t] = rows.map(r => r.data);
+  }
+  return tables;
+}
+const countsOf = tables => Object.fromEntries(BACKUP_TABLES.map(t => [t, (tables[t] || []).length]));
+
+async function createBackup(kind, by) {
+  const tables = await snapshotData();
+  const now = new Date();
+  const id = 'bk_' + TODAY_STR() + '_' + NOW_TIME().replace(':', '') + '_' + kind + '_' + Math.random().toString(36).slice(2, 5);
+  const entry = { id, kind, by: by || 'система', at: now.toISOString(), counts: countsOf(tables), tables };
+  await upsert('backups', [entry]);
+  await pruneBackups();
+  return entry;
+}
+
+// Автокопій тримаємо 14, ручних і «перед відновленням» — по 10
+async function pruneBackups() {
+  const { rows } = await pool.query("SELECT id, data->>'kind' AS kind, data->>'at' AS at FROM backups");
+  const keep = { auto: 14, manual: 10, 'pre-restore': 10 };
+  for (const kind of Object.keys(keep)) {
+    const list = rows.filter(r => r.kind === kind).sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+    for (const old of list.slice(keep[kind])) await pool.query('DELETE FROM backups WHERE id = $1', [old.id]);
+  }
+}
+
+async function autoBackupTick() {
+  try {
+    const hour = Number(new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Kyiv', hour: '2-digit', hour12: false }));
+    if (hour < 3) return;
+    const { rows } = await pool.query("SELECT 1 FROM backups WHERE data->>'kind' = 'auto' AND id LIKE $1 LIMIT 1", ['bk_' + TODAY_STR() + '_%']);
+    if (!rows.length) { await createBackup('auto', 'система'); console.log('💾 Автокопія створена'); }
+  } catch (e) { console.error('backup error:', e); }
+}
+
+// Відновлення: у транзакції повністю замінюємо дані; перед цим — копія «pre-restore»
+async function restoreTables(tables) {
+  for (const t of BACKUP_TABLES) {
+    if (tables[t] !== undefined && !Array.isArray(tables[t])) throw Object.assign(new Error('Некоректний файл копії'), { status: 400 });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const t of BACKUP_TABLES) {
+      if (tables[t] === undefined) continue;
+      await client.query(`DELETE FROM ${t}`);
+      for (const item of tables[t]) {
+        if (!item || item.id == null) continue;
+        await client.query(`INSERT INTO ${t} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2`, [String(item.id), item]);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) { await client.query('ROLLBACK'); throw e; }
+  finally { client.release(); }
+}
+
+app.get('/api/backups', auth, ownerOnly, async (req, res) => {
+  const { rows } = await pool.query("SELECT data->>'id' AS id, data->>'kind' AS kind, data->>'by' AS by, data->>'at' AS at, data->'counts' AS counts FROM backups ORDER BY data->>'at' DESC");
+  res.json(rows);
+});
+app.post('/api/backups/run', auth, ownerOnly, async (req, res) => {
+  const e = await createBackup('manual', req.user.name || 'власник');
+  await logAction(req, 'backup_create', { id: e.id });
+  res.json({ id: e.id, at: e.at, counts: e.counts });
+});
+app.get('/api/backups/:id/download', auth, ownerOnly, async (req, res) => {
+  const { rows } = await pool.query('SELECT data FROM backups WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Копію не знайдено' });
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="gym-backup-${String(rows[0].data.at || '').slice(0, 10)}.json"`);
+  res.send(JSON.stringify(rows[0].data));
+});
+app.post('/api/backups/:id/restore', auth, ownerOnly, async (req, res) => {
+  if (!req.body || req.body.confirm !== 'ВІДНОВИТИ') return res.status(400).json({ error: 'Потрібне підтвердження' });
+  const { rows } = await pool.query('SELECT data FROM backups WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Копію не знайдено' });
+  await createBackup('pre-restore', req.user.name || 'власник');
+  await restoreTables(rows[0].data.tables || {});
+  await logAction(req, 'backup_restore', { id: req.params.id });
+  res.json({ ok: true });
+});
+app.post('/api/backups/restore-file', auth, ownerOnly, async (req, res) => {
+  const b = req.body || {};
+  if (b.confirm !== 'ВІДНОВИТИ' || !b.backup || typeof b.backup.tables !== 'object') return res.status(400).json({ error: 'Некоректний файл або немає підтвердження' });
+  await createBackup('pre-restore', req.user.name || 'власник');
+  await restoreTables(b.backup.tables);
+  await logAction(req, 'backup_restore_file', { at: b.backup.at || null });
+  res.json({ ok: true });
+});
+
+// ── Авторозморозка ──────────────────────────────────────────────────────────
+// Якщо при заморозці вказали дату повернення (freezeUntil) — у цей день абонемент
+// розморожується сам, а дні заморозки додаються (так само, як при ручній).
+function ymd(s) { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return Date.UTC(y, m - 1, d); }
+function addDaysStr(s, n) { const t = new Date(ymd(s) + n * 86400000); return t.toISOString().slice(0, 10); }
+function daysBetween(a, b) { return Math.round((ymd(b) - ymd(a)) / 86400000); }
+
+async function autoUnfreezeTick() {
+  try {
+    const today = TODAY_STR();
+    const { rows } = await pool.query(
+      "SELECT data FROM abons WHERE data->>'frozen' = 'true' AND data->>'freezeUntil' IS NOT NULL AND data->>'freezeUntil' <= $1", [today]);
+    for (const r of rows) {
+      const a = r.data;
+      if (a.deleted || !a.freezeStart) continue;
+      const until = a.freezeUntil < a.freezeStart ? a.freezeStart : a.freezeUntil;
+      const days = daysBetween(a.freezeStart, until);
+      const updated = {
+        ...a, frozen: false, freezeStart: null, freezeUntil: null,
+        extraDays: (a.extraDays || 0) + days,
+        freezeLog: [...(a.freezeLog || []), { from: a.freezeStart, to: until, days, auto: true }],
+        endDate: a.type === 'month' && a.endDate ? addDaysStr(a.endDate, days) : a.endDate
+      };
+      await upsert('abons', [updated]);
+      await logAction({ user: { name: 'Система', role: 'system' } }, 'abon_auto_unfreeze', { abonId: a.id, days });
+    }
+    if (rows.length) console.log('❄️→▶️ Авторозморожено абонементів: ' + rows.length);
+  } catch (e) { console.error('auto-unfreeze error:', e); }
+}
+
 // Загальний обробник помилок — сервер відповідає 500 і працює далі
 app.use((err, req, res, next) => {
   console.error('Request error:', req.method, req.originalUrl, err);
@@ -1214,5 +1364,10 @@ app.use((err, req, res, next) => {
 });
 
 initDb()
-  .then(() => app.listen(PORT, () => console.log('🏋️ Сервер запущено на порту ' + PORT)))
+  .then(() => {
+    app.listen(PORT, () => console.log('🏋️ Сервер запущено на порту ' + PORT));
+    const tick = () => { autoUnfreezeTick(); autoBackupTick(); };
+    setTimeout(tick, 15000);
+    setInterval(tick, 30 * 60 * 1000);
+  })
   .catch(e => { console.error('DB init error:', e); process.exit(1); });
