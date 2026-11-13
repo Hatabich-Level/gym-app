@@ -10,6 +10,9 @@ import TrainerClients from './pages/TrainerClients'
 import { api } from './api'
 import { LoadingOverlay, ReminderBanner, Tabs, Modal, FRow } from './components/UI'
 import { useStore } from './hooks/useStore'
+import DataTab from './components/DataTab'
+import { ReminderModal } from './components/Extras'
+import { getTheme, setTheme, applyTheme } from './theme'
 import { uid, abonStatus, getActiveAbon, daysDiff, TODAY, refreshToday, isExtensionPayment } from './utils'
 
 const PAGES = ['home', 'members', 'checkin', 'sessions', 'finance']
@@ -27,10 +30,16 @@ export default function App() {
   const [reminderDismissed, setReminderDismissed] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [, setDayTick] = useState(0)
+  const [remindId, setRemindId] = useState(null)
 
   const store = useStore()
 
   const isLoggedIn = !!auth.token && !!auth.role
+
+  useEffect(() => {
+    document.body.classList.toggle('ro', !!store.readOnly)
+    return () => document.body.classList.remove('ro')
+  }, [store.readOnly])
 
   // Load data on login.
   // Прострочений токен (401) обробляє api.js — чистить сесію і перезавантажує.
@@ -248,6 +257,8 @@ export default function App() {
         />
       )}
 
+      {store.readOnly && <div className="ro-banner">👁 Режим перегляду — змінювати дані не можна</div>}
+
       {/* Header */}
       {!memberDetailId && (
         <div className="hdr">
@@ -266,10 +277,7 @@ export default function App() {
                 <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
               </svg>
             </button>
-            {isAdmin && (
-              <button className="logout-btn" onClick={() => setPage('settings')}>⚙️</button>
-            )}
-            <button className="logout-btn" onClick={handleLogout}>Вийти</button>
+            <button className="logout-btn keep-ro" onClick={() => setPage('settings')} title="Налаштування" aria-label="Налаштування">⚙️</button>
           </div>
         </div>
       )}
@@ -317,7 +325,10 @@ export default function App() {
               payments={store.payments}
               role={role}
               uname={uname}
+              trainers={store.trainers}
               onNavigate={navigate}
+              onAddMember={() => setMemberDetailId('__new__')}
+              onRemind={(id) => setRemindId(id)}
             />
           )}
           {page === 'members' && isAdmin && (
@@ -327,6 +338,7 @@ export default function App() {
               role={role}
               isOwner={isOwner}
               initialTab={membersInitialTab}
+              trainers={store.trainers}
               onOpen={(id) => setMemberDetailId(id)}
               onAdd={() => setMemberDetailId('__new__')}
               onDeleteMany={store.deleteMembers}
@@ -387,9 +399,11 @@ export default function App() {
               pushPayment={store.pushPayment}
             />
           )}
-          {page === 'settings' && isAdmin && (
+          {page === 'settings' && (
             <SettingsPage
               onReset={store.load} isOwner={isOwner}
+              onLogout={handleLogout} uname={uname} role={role}
+              members={store.members} pushMembers={store.pushMembers} updateUserReadOnly={store.updateUserReadOnly}
               users={store.users} auditLog={store.auditLog}
               createUser={store.createUser} deleteUser={store.deleteUser} changeUserPassword={store.changeUserPassword} updateUserColor={store.updateUserColor} updateUserTerms={store.updateUserTerms}
               abons={store.abons} pushAbons={store.pushAbons}
@@ -398,6 +412,11 @@ export default function App() {
           )}
         </div>
       )}
+
+      {remindId && (() => {
+        const m = store.members.find(x => x.id === remindId)
+        return m ? <ReminderModal member={m} abons={store.abons} payments={store.payments} onClose={() => setRemindId(null)} /> : null
+      })()}
 
       {/* Bottom nav */}
       {!memberDetailId && (
@@ -456,9 +475,11 @@ function NewMemberModal({ onSave, onClose }) {
 }
 
 // ── Settings page ─────────────────────────────────────────────────────────────
-function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
+function SettingsPage({ onReset, onLogout, uname, role, members, pushMembers, updateUserReadOnly, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
   const [loading, setLoading] = useState(false)
-  const [tab, setTab] = useState('accounts')
+  const [tab, setTab] = useState('view')
+  const [theme, setThemeState] = useState(getTheme())
+  function pickTheme(t) { setTheme(t); setThemeState(t) }
 
   async function resetAbons() {
     if (!confirm('Скинути всі абонементи? Платежі залишаться.')) return
@@ -497,14 +518,35 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
 
       {isOwner && (
         <Tabs
-          tabs={[{ key: 'accounts', label: 'Акаунти' }, { key: 'log', label: 'Журнал дій' }, { key: 'danger', label: 'Небезпечна зона' }]}
+          tabs={[{ key: 'view', label: 'Вигляд' }, { key: 'accounts', label: 'Акаунти' }, { key: 'data', label: 'Дані' }, { key: 'log', label: 'Журнал дій' }, { key: 'danger', label: 'Небезпечна зона' }]}
           active={tab} onChange={setTab}
         />
       )}
 
-      {isOwner && tab === 'accounts' && (
-        <AccountsTab users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} updateUserColor={updateUserColor} updateUserTerms={updateUserTerms} abons={abons} pushAbons={pushAbons} currentUid={currentUid} />
+      {(tab === 'view' || !isOwner) && (
+        <>
+          <div className="card keep-ro">
+            <div className="ct">Тема</div>
+            <div className="method-toggle">
+              <button className={`method-btn ${theme === 'dark' ? 'on-card' : ''}`} onClick={() => pickTheme('dark')}>🌙 Темна</button>
+              <button className={`method-btn ${theme === 'light' ? 'on-card' : ''}`} onClick={() => pickTheme('light')}>☀️ Світла</button>
+            </div>
+          </div>
+          <div className="card keep-ro">
+            <div className="ct">Акаунт</div>
+            <div style={{ fontSize: 14, marginBottom: 12 }}>
+              {role === 'owner' ? '👑 Головний адмін' : role === 'admin' ? '🛠 Адмін' : '🏋️ Тренер'} <b>{uname}</b>
+            </div>
+            <button className="btn btn-red keep-ro" onClick={onLogout}>🚪 Вийти з акаунта</button>
+          </div>
+        </>
       )}
+
+      {isOwner && tab === 'accounts' && (
+        <AccountsTab updateUserReadOnly={updateUserReadOnly} users={users} createUser={createUser} deleteUser={deleteUser} changeUserPassword={changeUserPassword} updateUserColor={updateUserColor} updateUserTerms={updateUserTerms} abons={abons} pushAbons={pushAbons} currentUid={currentUid} />
+      )}
+
+      {isOwner && tab === 'data' && <DataTab members={members} abons={abons} pushMembers={pushMembers} onReload={onReset} />}
 
       {isOwner && tab === 'log' && <AuditLogTab auditLog={auditLog} />}
 
@@ -519,7 +561,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
 
       {!isOwner && (
         <div className="card" style={{ textAlign: 'center', color: 'var(--txt2)' }}>
-          Керування акаунтами та журнал дій доступні лише головному адміну.
+          Керування акаунтами, резервні копії та журнал дій доступні лише головному адміну.
         </div>
       )}
     </div>
@@ -527,7 +569,7 @@ function SettingsPage({ onReset, isOwner, users, auditLog, createUser, deleteUse
 }
 
 // ── Accounts management (owner only) ───────────────────────────────────────────
-function AccountsTab({ users, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
+function AccountsTab({ updateUserReadOnly, users, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
   const [showAdd, setShowAdd] = useState(false)
   const [pwdFor, setPwdFor] = useState(null) // user id, для зміни пароля
   const [colorFor, setColorFor] = useState(null) // user id, для зміни кольору
@@ -567,7 +609,7 @@ function AccountsTab({ users, createUser, deleteUser, changeUserPassword, update
     <div className="card">
       <div className="ct">Акаунти ({(users||[]).length})</div>
       <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 12, lineHeight: 1.5 }}>
-        🎨 Колір акаунта використовується в експорті табеля — стовпець "час" за день фарбується кольором того, хто того дня вносив записи.
+        🎨 Колір акаунта: у табелі та біля тренера на заняттях, у фінансах і в списках клієнтів. 👁 — режим «лише перегляд» (акаунт бачить усе, але нічого не змінює).
       </div>
       {(users||[]).map(u => {
         const list = trainerAbons(u)
@@ -584,10 +626,17 @@ function AccountsTab({ users, createUser, deleteUser, changeUserPassword, update
                 />
                 <div>
                   <div style={{ fontWeight: 500 }}>{u.name || u.login} <span style={{ color: 'var(--txt2)', fontSize: 12 }}>@{u.login}</span></div>
-                  <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{ROLE_LABEL[u.role] || u.role}</div>
+                  <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{ROLE_LABEL[u.role] || u.role}{u.readOnly ? ' · 👁 лише перегляд' : ''}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
+                {u.role !== 'owner' && updateUserReadOnly && (
+                  <button className="btn-sm keep-ro" title={u.readOnly ? 'Режим перегляду увімкнено — натисни, щоб дозволити зміни' : 'Дозволено змінювати — натисни, щоб лишити лише перегляд'}
+                    style={{ background: u.readOnly ? 'rgba(91,141,246,.15)' : 'var(--s2)', border: '1px solid ' + (u.readOnly ? 'rgba(91,141,246,.5)' : 'var(--brd)'), color: u.readOnly ? 'var(--acc)' : 'var(--txt2)', borderRadius: 8, padding: '6px 10px' }}
+                    disabled={busyId === u.id}
+                    onClick={async () => { setBusyId(u.id); try { await updateUserReadOnly(u.id, !u.readOnly) } finally { setBusyId(null) } }}
+                  >👁</button>
+                )}
                 {u.role === 'trainer' && updateUserTerms && (
                   <button className="btn-sm" title="Умови оплати" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8, padding: '6px 10px' }} onClick={() => setTermsFor(u.id)}>💰</button>
                 )}
@@ -802,6 +851,11 @@ function AuditLogTab({ auditLog }) {
     user_create: '➕ Створено акаунт',
     user_delete: '🗑 Видалено акаунт',
     user_password_change: '🔑 Змінено пароль акаунта',
+    user_readonly: '👁 Змінено режим «лише перегляд»',
+    backup_create: '💾 Створено резервну копію',
+    backup_restore: '↩️ Відновлено з резервної копії',
+    abon_auto_unfreeze: '▶️ Авто-розморозка абонемента',
+    backup_restore_file: '↩️ Відновлено з файлу копії',
   }
 
   function describe(entry) {
@@ -813,6 +867,8 @@ function AuditLogTab({ auditLog }) {
       case 'abon_deactivate': return `${d.memberName || '?'} (${d.abonType === 'month' ? 'місячний' : 'разовий'})`
       case 'payment_delete': return `${d.memberName || '?'} · ${d.amount} грн · ${d.date || ''}`
       case 'user_create': case 'user_delete': case 'user_password_change': return `@${d.login || '?'}`
+      case 'user_readonly': return `@${d.login || '?'} → ${d.readOnly ? 'лише перегляд' : 'повний доступ'}`
+      case 'abon_auto_unfreeze': return `${d.days || 0} дн. додано`
       default: return ''
     }
   }

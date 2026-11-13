@@ -6,7 +6,7 @@ function daysDiffSafe(a, b) {
   return daysDiff(a, b)
 }
 
-export default function HomePage({ members, abons, payments, role, uname, onNavigate }) {
+export default function HomePage({ members, abons, payments, role, uname, onNavigate, onAddMember, onRemind }) {
   const isAdmin = role === 'owner' || role === 'admin'
 
   // Stats
@@ -43,12 +43,12 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
     const st = abonStatus(a)
     if (st === 'frozen') {
       const d = daysDiffSafe(a.freezeStart, TODAY)
-      alerts.push({ p: 2, id: m.id, name: m.name, tag: 'tag-ice', tagTxt: '❄️ Заморожено', sub: `Заморожено ${d} дн. тому`, dot: '#88aaff' })
+      alerts.push({ p: 2, id: m.id, phone: m.phone, name: m.name, tag: 'tag-ice', tagTxt: '❄️ Заморожено', sub: `Заморожено ${d} дн. тому`, dot: '#88aaff' })
     } else if (st === 'expired') {
-      alerts.push({ p: 0, id: m.id, name: m.name, tag: 'tag-red', tagTxt: 'Закінчився', sub: a.type === 'month' ? 'Закінчився ' + fmtDate(a.endDate) : 'Разовий використано', dot: '#ff5588' })
+      alerts.push({ p: 0, id: m.id, phone: m.phone, name: m.name, tag: 'tag-red', tagTxt: 'Закінчився', sub: a.type === 'month' ? 'Закінчився ' + fmtDate(a.endDate) : 'Разовий використано', dot: '#ff5588' })
     } else if (st === 'ending') {
       const d = daysDiffSafe(TODAY, a.endDate)
-      alerts.push({ p: 1, id: m.id, name: m.name, tag: 'tag-ylw', tagTxt: '⚠️ ' + (d === 0 ? 'Сьогодні' : d + ' дн.'), sub: 'Закінчується ' + fmtDate(a.endDate), dot: '#f5a623' })
+      alerts.push({ p: 1, id: m.id, phone: m.phone, name: m.name, tag: 'tag-ylw', tagTxt: '⚠️ ' + (d === 0 ? 'Сьогодні' : d + ' дн.'), sub: 'Закінчується ' + fmtDate(a.endDate), dot: '#f5a623' })
     }
   })
   alerts.sort((a, b) => a.p - b.p)
@@ -60,6 +60,15 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
 
   return (
     <div className="pg">
+
+      {/* Швидкі дії */}
+      <div className="quick">
+        <button onClick={() => onNavigate('checkin')}><span className="qi">✅</span>Відмітити</button>
+        {isAdmin
+          ? <button onClick={onAddMember}><span className="qi">➕</span>Новий клієнт</button>
+          : <button onClick={() => onNavigate('trainers')}><span className="qi">👥</span>Мої клієнти</button>}
+        <button onClick={() => onNavigate('sessions')}><span className="qi">🏋️</span>Заняття</button>
+      </div>
 
       {/* Stats */}
       <div className="stats2">
@@ -124,6 +133,11 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
                   <div className="ai-sub">{a.sub}</div>
                 </div>
                 <span className={`ai-tag ${a.tag}`}>{a.tagTxt}</span>
+                {isAdmin && onRemind && a.phone && (
+                  <button title="Нагадати клієнту" aria-label="Нагадати клієнту"
+                    onClick={e => { e.stopPropagation(); onRemind(a.id) }}
+                    style={{ marginLeft: 6, background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 8, padding: '4px 8px', cursor: 'pointer', fontSize: 14 }}>💬</button>
+                )}
               </div>
             ))}
           </div>

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { api } from '../api'
+import { setTrainerColors, setTrainerColor } from '../trainerColors'
 
 export function useStore() {
   const [members, setMembers] = useState([])
@@ -11,6 +12,7 @@ export function useStore() {
   const [shifts, setShifts] = useState([])
   const [myTerms, setMyTerms] = useState(null)
   const [trainers, setTrainers] = useState([])
+  const [readOnly, setReadOnly] = useState(false)
   const [loading, setLoadingRaw] = useState(false)
 
   // pending — скільки операцій зараз виконується; seq змінюється на початку
@@ -34,6 +36,8 @@ export function useStore() {
     setShifts(st.shifts || [])
     setMyTerms(st.myTerms || null)
     setTrainers(st.trainers || [])
+    setReadOnly(!!st.readOnly)
+    setTrainerColors([...(st.users || []), ...(st.trainers || [])])
   }, [])
 
   const load = useCallback(async () => {
@@ -180,7 +184,16 @@ export function useStore() {
     setLoading(true)
     try {
       await api('/users/' + id + '/color', 'POST', { color })
-      setUsers(prev => prev.map(u => u.id === id ? { ...u, color } : u))
+      setUsers(prev => prev.map(u => { if (u.id === id) { setTrainerColor(id, u.name || u.login, color); return { ...u, color } } return u }))
+      setTrainers(prev => prev.map(u => u.id === id ? { ...u, color } : u))
+    } finally { setLoading(false) }
+  }, [])
+
+  const updateUserReadOnly = useCallback(async (id, ro) => {
+    setLoading(true)
+    try {
+      await api('/users/' + id + '/readonly', 'POST', { readOnly: ro })
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, readOnly: ro } : u))
     } finally { setLoading(false) }
   }, [])
 
@@ -229,11 +242,11 @@ export function useStore() {
   }, [])
 
   return {
-    members, abons, payments, manualDebts, users, auditLog, shifts, pushShifts, myTerms, trainers, loading,
+    members, abons, payments, manualDebts, users, auditLog, shifts, pushShifts, myTerms, trainers, readOnly, loading,
     load, refresh, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,
-    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, unlinkCard, assignTrainer,
+    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, updateUserReadOnly, unlinkCard, assignTrainer,
     setAbons, setMembers
   }
 }

@@ -4,6 +4,8 @@ import {
   HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning, trainerTerms
 } from '../utils'
 import { FRow, Ava, MethodPill, ChangeCalc } from '../components/UI'
+import { TDot } from '../components/Extras'
+import { trainerColorByName } from '../trainerColors'
 
 function MethodToggle({ value, onChange }) {
   return (
@@ -553,7 +555,7 @@ function TodaySessionsBlock({ payments, uname, role }) {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{icon} {names}</div>
                   <div style={{ color: 'var(--txt2)' }}>
-                    {p.time || ''}{p.trainer ? ' · ' + p.trainer : ''}{p.note ? ' · ' + p.note : ''}
+                    {p.time || ''}{p.trainer ? <> · <TDot color={trainerColorByName(p.trainer)} />{p.trainer}</> : ''}{p.note ? ' · ' + p.note : ''}
                     {isSplit ? ` · спліт ${p.splitCount} ос.${p.payingCount !== undefined && p.payingCount < p.splitCount ? ` (${p.splitCount - p.payingCount} з абон.)` : ''}` : ''}
                     {isDeducted ? ' · списано з абонементу' : ''}
                   </div>

@@ -398,3 +398,72 @@ select:focus,input:focus{border-color:var(--acc)}
 @media (max-width:719px) and (display-mode:standalone){
   .reminder-banner{padding-top:calc(max(env(safe-area-inset-top,0px),44px) + 6px)}
 }
+
+/* ══ Світла тема ═══════════════════════════════════════════════════════════ */
+:root[data-theme="light"]{
+  --bg:#f3f5fb;--s1:#ffffff;--s2:#eef1f9;--s3:#e1e6f3;
+  --acc:#3d6fe0;--acc2:#6a4ce0;--grn:#14a05c;--red:#e0245e;
+  --ylw:#c97a00;--txt:#1a2038;--txt2:#5b647f;--brd:#dde2f0;
+  color-scheme:light;
+}
+:root[data-theme="light"] .tag-red{color:#c81e52}
+:root[data-theme="light"] .tag-ice,
+:root[data-theme="light"] .btn-ice,
+:root[data-theme="light"] .frozen-banner{color:#3a5cc0}
+:root[data-theme="light"] .btn-red,
+:root[data-theme="light"] .icon-btn.del,
+:root[data-theme="light"] .alert-dismiss:hover,
+:root[data-theme="light"] .sel-chip .x:hover{color:#c81e52}
+:root[data-theme="light"] .btn-grn{color:#fff}
+:root[data-theme="light"] .nb:hover{background:rgba(0,0,0,.04)}
+:root[data-theme="light"] .mi:hover,
+:root[data-theme="light"] .payment-item:hover,
+:root[data-theme="light"] .alert-item:hover{background:rgba(0,0,0,.03)}
+:root[data-theme="light"] .card{box-shadow:0 1px 2px rgba(30,40,80,.06)}
+:root[data-theme="light"] .sel-chip .x{background:rgba(0,0,0,.06)}
+
+/* ══ Швидкі дії (головна) ═════════════════════════════════════════════════ */
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.quick button{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:12px 4px 10px;color:var(--txt);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600;transition:transform .12s,border-color .15s}
+.quick button:active{transform:scale(.95)}
+.quick button:hover{border-color:var(--acc)}
+.quick .qi{font-size:22px;line-height:1}
+
+/* ══ Смужка статусу на картках клієнтів ═══════════════════════════════════ */
+.mi{position:relative}
+.mi.st-active{box-shadow:inset 3px 0 0 var(--grn)}
+.mi.st-ending{box-shadow:inset 3px 0 0 var(--ylw)}
+.mi.st-expired{box-shadow:inset 3px 0 0 var(--red)}
+.mi.st-frozen{box-shadow:inset 3px 0 0 #88aaff}
+.mi.st-none{box-shadow:inset 3px 0 0 var(--brd)}
+.mi[class*="st-"]{padding-left:10px}
+.tdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;border:1px solid rgba(128,128,128,.35);flex-shrink:0}
+
+/* ══ Календар відвідувань ═════════════════════════════════════════════════ */
+.vcal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.vcal-head button{background:var(--s2);border:1px solid var(--brd);color:var(--txt);border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer}
+.vcal-head button:disabled{opacity:.35;cursor:default}
+.vcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.vcal-dow{font-size:10px;color:var(--txt2);text-align:center;padding-bottom:2px}
+.vcal-day{height:38px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:12px;color:var(--txt2);background:transparent;position:relative}
+.vcal-day.visit{background:var(--grn);color:#fff;font-weight:700}
+.vcal-day.trainer{background:var(--acc);color:#fff;font-weight:700}
+.vcal-day.today{outline:2px solid var(--acc);outline-offset:-2px}
+.vcal-day.frozen{background:rgba(136,170,255,.2);color:#88aaff}
+.vcal-day.n2::after{content:'×2';position:absolute;top:1px;right:3px;font-size:8px;opacity:.85}
+
+/* ══ Графіки у Фінансах ═══════════════════════════════════════════════════ */
+.split-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--s2);margin:8px 0 6px}
+.split-bar>div{height:100%}
+.split-legend{display:flex;justify-content:space-between;font-size:12px;color:var(--txt2)}
+
+/* ══ Режим «лише перегляд» ════════════════════════════════════════════════ */
+.ro-banner{background:rgba(91,141,246,.12);border-bottom:1px solid rgba(91,141,246,.3);color:var(--acc);font-size:13px;font-weight:600;padding:8px 14px;text-align:center}
+body.ro .btn-grn,body.ro .btn-red,body.ro .btn-ylw,body.ro .btn-acc,body.ro .btn-ice,
+body.ro .checkin-btn,body.ro .icon-btn.del{opacity:.4;pointer-events:none}
+body.ro .keep-ro,body.ro .keep-ro *{opacity:1!important;pointer-events:auto!important}
+
+/* ══ Допоміжне ════════════════════════════════════════════════════════════ */
+.chip-btn{background:var(--s2);border:1px solid var(--brd);color:var(--txt);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px}
+.chip-btn:active{transform:scale(.97)}
+.rem-text{width:100%;min-height:120px;background:var(--s2);border:1px solid var(--brd);border-radius:var(--r2);color:var(--txt);padding:10px;font-size:15px;font-family:inherit;resize:vertical}

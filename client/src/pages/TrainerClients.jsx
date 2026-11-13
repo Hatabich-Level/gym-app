@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react'
 import {
   fmtDate, getActiveAbon, abonStatus, isTrainerAbonExpired, STATUS_LABEL, STATUS_TAG
 } from '../utils'
+import { TDot } from '../components/Extras'
+import { trainerColorById } from '../trainerColors'
 import { Ava, Empty, Modal, Tabs } from '../components/UI'
 
 const NONE = '__none__'
@@ -138,7 +140,7 @@ export default function TrainerClients({ members, abons, trainers: allAccounts, 
             <div key={m.id} className="mi" style={{ alignItems: 'flex-start', padding: '12px 0' }} onClick={() => onOpen && onOpen(m.id)}>
               <Ava name={m.name} />
               <div className="mi-info">
-                <div className="mi-name">{m.name}</div>
+                <div className="mi-name"><TDot color={trainerColorById(m.trainerId)} />{m.name}</div>
                 <div className="mi-sub" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                   <ClubChip info={club} />
                   <TrainerChip info={tr} />

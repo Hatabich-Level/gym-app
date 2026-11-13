@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { abonStatus, getActiveAbon, visitedTodayAny, fmtDate, STATUS_LABEL, STATUS_TAG } from '../utils'
 import { Ava, Tabs, Empty } from '../components/UI'
+import { TDot } from '../components/Extras'
+import { trainerColorById } from '../trainerColors'
 
 const TABS = [
   { key: 'all', label: 'Всі' },
@@ -172,7 +174,7 @@ export default function MembersPage({ members, abons, role, isOwner, onOpen, onA
               const ab = getActiveAbon(m.id, abons)
               const st = ab ? abonStatus(ab) : null
               return (
-                <div key={m.id} className="mi" onClick={() => onOpen(m.id)}>
+                <div key={m.id} className={`mi st-${st || 'none'}`} onClick={() => onOpen(m.id)}>
                   <span className="mi-check-cell" onClick={e => isOwner && e.stopPropagation()}>
                     {isOwner && (
                       <input type="checkbox"
@@ -186,7 +188,7 @@ export default function MembersPage({ members, abons, role, isOwner, onOpen, onA
                   <Ava name={m.name} />
                   <div className="mi-info">
                     <div className="mi-name">
-                      {m.name}
+                      <TDot color={trainerColorById(m.trainerId)} />{m.name}
                       {m.isTrainer && <span className="ai-tag tag-blue" style={{ marginLeft: 6, fontSize: 11 }}>👔 Тренер</span>}
                     </div>
                     <div className="mi-sub mi-phone-mobile">{m.phone || (st ? STATUS_LABEL[st] : 'Без абонементу')}</div>

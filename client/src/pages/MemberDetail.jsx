@@ -5,6 +5,8 @@ import {
   isTrainerAbonExpired, TRAINER_ABON_EXPIRY_DAYS
 } from '../utils'
 import { Modal, FRow, MethodToggle, MethodPill, ProgressBar, IconBtn, ChangeCalc } from '../components/UI'
+import { VisitCalendar, ReminderModal, TDot } from '../components/Extras'
+import { trainerColorById } from '../trainerColors'
 
 export default function MemberDetail({
   memberId, members, abons, payments, role, uname,
@@ -58,8 +60,8 @@ export default function MemberDetail({
     await pushAbons(duplicateActiveAbons.map(a => ({ ...a, active: false })))
   }
 
-  async function doFreeze(startDate) {
-    const updated = { ...activeAbon, frozen: true, freezeStart: startDate }
+  async function doFreeze(startDate, until) {
+    const updated = { ...activeAbon, frozen: true, freezeStart: startDate, freezeUntil: until || null }
     await pushAbons([updated])
     setModal(null)
   }
@@ -71,6 +73,7 @@ export default function MemberDetail({
       ...activeAbon,
       frozen: false,
       freezeStart: null,
+      freezeUntil: null,
       extraDays: (activeAbon.extraDays || 0) + frozenDays,
       freezeLog,
       endDate: activeAbon.type === 'month' && activeAbon.endDate ? addDays(activeAbon.endDate, frozenDays) : activeAbon.endDate
@@ -98,9 +101,12 @@ export default function MemberDetail({
           Назад
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mem.name}</div>
+          <div style={{ fontWeight: 600, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><TDot color={trainerColorById(mem.trainerId)} />{mem.name}</div>
           <div style={{ fontSize: 12, color: 'var(--txt2)' }}>{mem.phone || ''}</div>
         </div>
+        {isAdmin && (
+          <button className="btn-sm keep-ro" title="Нагадати клієнту" aria-label="Нагадати клієнту" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt)', borderRadius: 8, padding: '6px 10px', marginRight: 6 }} onClick={() => setModal('remind')}>💬</button>
+        )}
         {isOwner && (
           <button className="btn-sm btn-gray" style={{ background: 'var(--s2)', border: '1px solid var(--brd)', color: 'var(--txt2)', borderRadius: 8 }} onClick={() => setModal('edit')}>
             ✏️ Редагувати
@@ -188,6 +194,7 @@ export default function MemberDetail({
           {activeAbon && activeAbon.frozen && (
             <div className="frozen-banner">
               ❄️ Заморожено {daysDiff(activeAbon.freezeStart, TODAY)} дн. тому (з {fmtDate(activeAbon.freezeStart)}). Дні будуть додані до абонементу після розморозки.
+              {activeAbon.freezeUntil && <div style={{ marginTop: 6, fontWeight: 600 }}>⏰ Авто-розморозка: {fmtDate(activeAbon.freezeUntil)}</div>}
             </div>
           )}
 
@@ -230,6 +237,8 @@ export default function MemberDetail({
         </div>
 
         <div className="detail-col-side">
+          <VisitCalendar memberId={memberId} abons={abons} />
+
           {/* Visit history */}
           {displayAbon && (displayAbon.visits || []).length > 0 && (
             <div className="card">
@@ -337,6 +346,9 @@ export default function MemberDetail({
           }}
           onClose={() => setModal(null)}
         />
+      )}
+      {modal === 'remind' && (
+        <ReminderModal member={mem} abons={abons} payments={payments} onClose={() => setModal(null)} />
       )}
       {modal === 'freeze' && activeAbon && (
         <FreezeModal
@@ -689,12 +701,14 @@ function ExtendAbonModal({ abon, memberId, memberName, onSave, onClose }) {
 // ── Freeze ────────────────────────────────────────────────────────────────────
 function FreezeModal({ abon, onSave, onClose }) {
   const [startDate, setStartDate] = useState(TODAY)
+  const [until, setUntil] = useState('')
   const min = abon.startDate || undefined
 
   function save() {
     if (!startDate) { alert('Вкажіть дату початку заморозки'); return }
     if (startDate > TODAY) { alert('Дата не може бути в майбутньому'); return }
-    onSave(startDate)
+    if (until && until <= TODAY) { alert('Дата повернення має бути після сьогодні'); return }
+    onSave(startDate, until || null)
   }
 
   return (
@@ -705,6 +719,9 @@ function FreezeModal({ abon, onSave, onClose }) {
         </div>
         <FRow label="Початок заморозки">
           <input type="date" value={startDate} max={TODAY} min={min} onChange={e => setStartDate(e.target.value)} />
+        </FRow>
+        <FRow label="Повернення (необовʼязково — розморозиться автоматично)">
+          <input type="date" value={until} min={addDays(TODAY, 1)} onChange={e => setUntil(e.target.value)} />
         </FRow>
         <button className="btn btn-ice" onClick={save}>❄️ Заморозити</button>
       </div>

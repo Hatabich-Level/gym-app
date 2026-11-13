@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react'
 import { TODAY, fmtDate, uid, nowTime, getActiveAbon, getMemberDebt, isExtensionPayment } from '../utils'
 import { MethodPill, Tabs, Empty, Ava } from '../components/UI'
 import { api } from '../api'
+import { TDot } from '../components/Extras'
+import { trainerColorByName } from '../trainerColors'
 
 const FTABS = [
   { key: 'payments', label: '💰 Каса' },
@@ -33,6 +35,66 @@ function sumBy(arr, method) {
     const amt = p.kind === 'session' ? (p.hallEarning || 0) : (p.amount || 0)
     return s + amt
   }, 0)
+}
+
+// ── Дохід залу за день (підтверджені гроші — та сама логіка, що й у підсумках) ──
+function hallAmount(p) {
+  if (p.kind === 'session') return p.hallMethod == null ? 0 : (p.hallEarning || 0)
+  if (p.kind === 'trainer_abon') return p.method == null ? 0 : (p.amount || 0)
+  return p.method == null ? 0 : (p.amount || 0)
+}
+
+function DailyChart({ monthPays, month, cash, card }) {
+  const [y, m] = month.split('-').map(Number)
+  const days = new Date(y, m, 0).getDate()
+  const today = +TODAY.slice(8)
+  const isCurrent = TODAY.slice(0, 7) === month
+  const vals = Array.from({ length: days }, () => 0)
+  monthPays.forEach(p => { const d = parseInt((p.date || '').slice(8)); if (d >= 1 && d <= days) vals[d - 1] += hallAmount(p) })
+  const shown = isCurrent ? vals.slice(0, today) : vals
+  const total = shown.reduce((s, v) => s + v, 0)
+  const max = Math.max(1, ...shown)
+  const w = 600, h = 130, padB = 18, padT = 8, gap = 3
+  const barW = (w - gap * (shown.length + 1)) / shown.length
+  const best = shown.indexOf(Math.max(...shown))
+  const sum = cash + card
+  const cashPct = sum ? Math.round(cash / sum * 100) : 0
+  return (
+    <div className="card">
+      <div className="ct">📈 Дохід по днях цього місяця</div>
+      {total === 0 ? <div className="empty">Поки немає підтверджених надходжень</div> : (
+        <>
+          <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Дохід по днях">
+            {shown.map((v, i) => {
+              const bh = v ? Math.max(2, (v / max) * (h - padB - padT)) : 1
+              const x = gap + i * (barW + gap)
+              return (
+                <g key={i}>
+                  <rect x={x} y={h - padB - bh} width={barW} height={bh} rx={2}
+                    style={{ fill: 'var(--acc)', opacity: i === shown.length - 1 && isCurrent ? 1 : (v ? .6 : .2) }} />
+                  {(i === 0 || (i + 1) % 5 === 0) && (
+                    <text x={x + barW / 2} y={h - 4} textAnchor="middle" style={{ fontSize: 9, fill: 'var(--txt2)' }}>{i + 1}</text>
+                  )}
+                </g>
+              )
+            })}
+          </svg>
+          <div style={{ fontSize: 12, color: 'var(--txt2)', marginTop: 4 }}>
+            Разом {total} грн · середній день {Math.round(total / shown.length)} грн · найкращий день: {best + 1}-е ({shown[best]} грн)
+          </div>
+        </>
+      )}
+      {sum > 0 && (
+        <>
+          <div className="split-bar" aria-hidden="true">
+            <div style={{ width: cashPct + '%', background: 'var(--grn)' }} />
+            <div style={{ width: (100 - cashPct) + '%', background: 'var(--acc)' }} />
+          </div>
+          <div className="split-legend"><span>💵 Готівка {cashPct}%</span><span>💳 Картка {100 - cashPct}%</span></div>
+        </>
+      )}
+    </div>
+  )
 }
 
 // ── Простий графік динаміки доходу по місяцях (без зовнішніх бібліотек) ───────
@@ -182,7 +244,7 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
                 <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {p.kind === 'trainer_abon' ? '🎫 ' : (p.sessionType === 'split' ? '👥 ' : '👤 ')}{p.memberName || '?'}
                 </div>
-                <div style={{ color: 'var(--txt2)' }}>{fmtDate(p.date)}{p.time ? ' ' + p.time : ''}{p.trainer ? ' · ' + p.trainer : ''} · {amt} грн</div>
+                <div style={{ color: 'var(--txt2)' }}>{fmtDate(p.date)}{p.time ? ' ' + p.time : ''}{p.trainer ? <> · <TDot color={trainerColorByName(p.trainer)} />{p.trainer}</> : ''} · {amt} грн</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <button className="chip" onClick={() => confirmHall(p, 'cash')}>💵</button>
@@ -198,12 +260,13 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
       <div className="sc"><div className="sv" style={{color:'var(--acc)'}}>{mCard}</div><div className="sl">💳 Картка (міс)</div></div>
       <div className="sc"><div className="sv">{mCash+mCard}</div><div className="sl">Всього за місяць</div></div>
     </div>
+    <DailyChart monthPays={monthPays} month={thisMonth} cash={mCash} card={mCard} />
     <div className="dgrid2">
       <div className="card">
         <div className="ct">🏦 Каса залу за місяць</div>
         <div className="irow"><span className="ikey">Каса залу</span><span className="ival" style={{color:'var(--acc)',fontWeight:700}}>{mHall} грн</span></div>
         {Object.entries(trainerMap).map(([t,e]) => (
-          <div key={t} className="irow" style={{paddingLeft:16}}><span className="ikey" style={{color:'var(--txt2)'}}>· {t}</span><span className="ival" style={{color:'var(--acc)'}}>{e} грн</span></div>
+          <div key={t} className="irow" style={{paddingLeft:16}}><span className="ikey" style={{color:'var(--txt2)'}}>· <TDot color={trainerColorByName(t)} />{t}</span><span className="ival" style={{color:'var(--acc)'}}>{e} грн</span></div>
         ))}
       </div>
       <div className="card">
