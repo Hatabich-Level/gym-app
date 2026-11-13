@@ -151,8 +151,9 @@ export function ReminderBanner({ count, onClick, onClose }) {
       <span>🔔</span>
       <span style={{ flex: 1 }}>{count} абонемент{count === 1 ? '' : count < 5 ? 'и' : 'ів'} закінчується або вже закінчились — натисни щоб побачити</span>
       <button
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#000', padding: '0 4px' }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#000' }}
         onClick={e => { e.stopPropagation(); onClose() }}
+        aria-label="Закрити"
       >×</button>
     </div>
   )
