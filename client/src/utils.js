@@ -68,7 +68,8 @@ export function abonStatus(ab) {
   if (ab.frozen) return 'frozen'
   if (ab.type === 'visit') return ab.active ? 'active' : 'expired'
   if (!ab.endDate) return 'expired'
-  if (ab.endDate < TODAY) return 'expired'
+  // Кінцева дата — день, коли абонемент уже закінчився (куплено 12.11 → 12.12 вже «Закінчився», останній день дії 11.12)
+  if (ab.endDate <= TODAY) return 'expired'
   if (daysDiff(TODAY, ab.endDate) <= 3) return 'ending'
   return 'active'
 }
@@ -94,7 +95,7 @@ export function isTrainerAbonExpired(a) {
   if (!a || !a.startDate) return false
   if (a.frozen) return false // поки заморожено — відлік 30 днів не йде
   const deadline = addDays(a.startDate, TRAINER_ABON_EXPIRY_DAYS + (a.extraDays || 0))
-  return TODAY > deadline
+  return TODAY >= deadline // у день дедлайну вже недійсний (як і місячний абонемент)
 }
 
 export function getActiveTrainerAbon(memberId, abons) {

@@ -65,7 +65,7 @@ app.get('/healthz', (req, res) => res.send('ok'));
 app.use(express.static(path.join(__dirname, 'public'), {
   index: false,
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('index.html')) {
+    if (filePath.endsWith('index.html') || filePath.endsWith('sw.js') || filePath.endsWith('manifest.json')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     } else if (/\.[0-9a-f]{6,}\.(js|css)$/i.test(filePath) || filePath.includes(path.join('public', 'assets'))) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -246,7 +246,7 @@ function abonUsable(ab) {
   if (!ab) return { ok: false, reason: 'Абонемент не знайдено' };
   if (ab.frozen) return { ok: false, reason: 'Абонемент заморожено' };
   if (ab.type === 'month') {
-    if (!ab.endDate || ab.endDate < TODAY_STR()) return { ok: false, reason: 'Абонемент прострочено' };
+    if (!ab.endDate || ab.endDate <= TODAY_STR()) return { ok: false, reason: 'Абонемент прострочено' };
   }
   if (ab.type === 'visit' && !ab.active) return { ok: false, reason: 'Абонемент вже використано' };
   return { ok: true };

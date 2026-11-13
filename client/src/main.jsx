@@ -13,6 +13,11 @@ window.addEventListener('unhandledrejection', (e) => {
   alert('❌ Не вдалося виконати дію: ' + (msg === 'Failed to fetch' ? 'немає звʼязку з сервером' : msg))
 })
 
+// Сервіс-воркер (тільки в продакшні): швидке відкриття застосунку з іконки
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}) })
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
