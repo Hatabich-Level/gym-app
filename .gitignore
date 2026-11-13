@@ -1,0 +1,5 @@
+node_modules/
+client/package-lock.json
+public/assets/
+public/index.html
+public/sw.js
