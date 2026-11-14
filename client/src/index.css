@@ -576,3 +576,24 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 .mtable .mi:active{transform:none}
 /* Рядки поза екраном не рендеряться, поки їх не прокрутять (Safari 18+, Chrome) */
 .mtable .mi{content-visibility:auto;contain-intrinsic-size:auto 62px}
+
+/* ══ Шапка у стилі B: дата, привітання, круглі білі кнопки ═══════════════════ */
+@keyframes waveHand{0%,100%{transform:rotate(0)}20%{transform:rotate(16deg)}40%{transform:rotate(-8deg)}60%{transform:rotate(12deg)}80%{transform:rotate(-4deg)}}
+.hdr{background:var(--bg);border-bottom:none;box-shadow:none;padding:20px 16px 10px;align-items:center}
+.hdr p{order:-1;font-size:13px;color:var(--txt2);margin:0 0 2px;text-transform:none}
+.hdr h1{font-size:25px;font-weight:700;letter-spacing:-.02em;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-wave{display:inline-block;vertical-align:-3px;margin-left:6px;color:var(--ylw);transform-origin:70% 75%;animation:waveHand 2.2s ease-in-out 1s 2}
+.icon-sq{position:relative;width:44px;height:44px;border-radius:16px;border:none;background:var(--s1);color:var(--txt);display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;box-shadow:var(--shadow);transition:transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .2s}
+.icon-sq:active{transform:scale(.88)}
+.icon-sq.bell-btn{border:none;padding:0}
+.icon-sq .bell-badge{top:-4px;right:-4px}
+@media (min-width:1024px){ .hdr h1{display:block} .hdr{padding:22px 40px 8px} }
+@media (prefers-reduced-motion:reduce){.hdr-wave{animation:none}}
+@media (max-width:430px){
+  .hdr{padding:18px 14px 8px;gap:8px}
+  .hdr h1{font-size:21px}
+  .hdr-wave{width:18px;height:18px;margin-left:4px}
+  .icon-sq{width:38px;height:38px;border-radius:14px}
+  .icon-sq svg{width:18px;height:18px}
+  .hdr > div:last-child{gap:6px!important}
+}

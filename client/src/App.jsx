@@ -256,28 +256,26 @@ export default function App() {
       {/* Header */}
       {!memberDetailId && (
         <div className="hdr">
-          <div>
-            <h1>💪 Спортзал</h1>
-            <p>Сьогодні: {new Date().toLocaleDateString('uk-UA')} · {isOwner ? '👑 Головний адмін' : isAdmin ? '🛠 Адмін' : '🏋️ Тренер'} {uname}</p>
+          <div style={{ minWidth: 0 }}>
+            <p>{new Date().toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+            <h1>
+              Привіт{uname ? ', ' + uname : ''}
+              <svg className="hdr-wave" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 11V6a2 2 0 114 0v5M11 11V4a2 2 0 114 0v7M15 11V6a2 2 0 114 0v8a7 7 0 01-7 7h-1a7 7 0 01-6-3.5L3 14a2 2 0 013.3-2.2L8 13"/></svg>
+            </h1>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isAdmin && (
-              <button className="bell-btn keep-ro" onClick={() => setBellOpen(true)} aria-label={`Сповіщення: ${endingCount}`} title="Сповіщення">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+              <button className="icon-sq bell-btn keep-ro" onClick={() => setBellOpen(true)} aria-label={`Сповіщення: ${endingCount}`} title="Сповіщення">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
                 {endingCount > 0 && <span className="bell-badge">{endingCount > 9 ? '9+' : endingCount}</span>}
               </button>
             )}
-            <button
-              style={{ background: 'none', border: '1px solid var(--brd)', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: 'var(--txt2)', display: 'flex', alignItems: 'center' }}
-              onClick={loadData}
-              title="Оновити"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
-                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-              </svg>
+            <button className="icon-sq keep-ro" onClick={loadData} title="Оновити" aria-label="Оновити">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
             </button>
-            <button className="logout-btn keep-ro" onClick={() => setPage('settings')} title="Налаштування" aria-label="Налаштування">⚙️</button>
+            <button className="icon-sq keep-ro" onClick={() => setPage('settings')} title="Налаштування" aria-label="Налаштування">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+            </button>
           </div>
         </div>
       )}
