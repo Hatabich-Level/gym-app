@@ -599,4 +599,5 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 }
 /* відступ під статус-бар iPhone (PWA, black-translucent) */
 .hdr{padding-top:calc(env(safe-area-inset-top,0px) + 14px)}
+@media (display-mode:standalone){ .hdr{padding-top:calc(max(env(safe-area-inset-top,0px),44px) + 10px)} }
 @media (min-width:1024px){ .hdr{padding-top:22px} }
