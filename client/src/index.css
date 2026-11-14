@@ -259,9 +259,10 @@ select:focus,input:focus{border-color:var(--acc)}
     box-shadow:none;background:var(--s1);
   }
   .nav::before{
-    content:'💪 Спортзал';
-    display:block;font-size:15px;font-weight:700;color:var(--txt);
-    padding:22px 14px 24px;letter-spacing:.2px;
+    content:'Sport City';
+    display:block;font-size:16px;font-weight:700;color:var(--txt);
+    padding:24px 14px 24px 52px;letter-spacing:-.01em;
+    background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'><rect width='30' height='30' rx='10' fill='%230F8B7D'/><path d='M8 15h14M10 11v8M20 11v8M7 13v4M23 13v4' stroke='white' stroke-width='2.2' stroke-linecap='round'/></svg>") no-repeat 14px 50%/30px 30px;
   }
   .nb{
     flex:none;position:relative;
@@ -298,7 +299,7 @@ select:focus,input:focus{border-color:var(--acc)}
   .reminder-banner{left:230px;padding-left:40px;padding-right:40px}
 
   /* Статистичні сітки — більше колонок на широкому екрані */
-  .stats2{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;max-width:960px}
+  .stats2{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;max-width:none}
   .stats3{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;max-width:1100px}
   .sv{font-size:28px}
   .stats3 .sv{font-size:22px}
