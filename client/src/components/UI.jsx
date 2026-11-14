@@ -180,3 +180,32 @@ export function IconBtn({ onClick, title, children, style }) {
     >{children}</button>
   )
 }
+
+// ── Число, що плавно «набігає» до значення (поважає prefers-reduced-motion) ───
+export function useCountUp(target, ms = 900) {
+  const [v, setV] = React.useState(0)
+  const cur = React.useRef(0)
+  React.useEffect(() => {
+    const to = Number(target) || 0
+    let reduce = false
+    try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch {}
+    if (reduce || cur.current === to) { cur.current = to; setV(to); return }
+    const from = cur.current
+    const start = performance.now()
+    let raf
+    const tick = (t) => {
+      const k = Math.min(1, (t - start) / ms)
+      const val = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)))
+      cur.current = val; setV(val)
+      if (k < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, ms])
+  return v
+}
+
+export function CountUp({ value, spaced }) {
+  const v = useCountUp(value)
+  return <>{spaced ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : v}</>
+}

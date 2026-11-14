@@ -12,7 +12,7 @@ import { LoadingOverlay, ReminderBanner, Tabs, Modal, FRow } from './components/
 import { useStore } from './hooks/useStore'
 import DataTab from './components/DataTab'
 import { ReminderModal } from './components/Extras'
-import { getTheme, setTheme, applyTheme } from './theme'
+import { getThemePref, setTheme, applyTheme, watchSystemTheme } from './theme'
 import { uid, abonStatus, getActiveAbon, daysDiff, TODAY, refreshToday, isExtensionPayment } from './utils'
 
 const PAGES = ['home', 'members', 'checkin', 'sessions', 'finance']
@@ -35,6 +35,8 @@ export default function App() {
   const store = useStore()
 
   const isLoggedIn = !!auth.token && !!auth.role
+
+  useEffect(() => watchSystemTheme(), [])
 
   useEffect(() => {
     document.body.classList.toggle('ro', !!store.readOnly)
@@ -480,7 +482,7 @@ function NewMemberModal({ onSave, onClose }) {
 function SettingsPage({ myColor, saveMyColor, onReset, onLogout, uname, role, members, pushMembers, updateUserReadOnly, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('view')
-  const [theme, setThemeState] = useState(getTheme())
+  const [theme, setThemeState] = useState(getThemePref())
   function pickTheme(t) { setTheme(t); setThemeState(t) }
 
   async function resetAbons() {
@@ -530,8 +532,9 @@ function SettingsPage({ myColor, saveMyColor, onReset, onLogout, uname, role, me
           <div className="card keep-ro">
             <div className="ct">Тема</div>
             <div className="method-toggle">
-              <button className={`method-btn ${theme === 'dark' ? 'on-card' : ''}`} onClick={() => pickTheme('dark')}>🌙 Темна</button>
               <button className={`method-btn ${theme === 'light' ? 'on-card' : ''}`} onClick={() => pickTheme('light')}>☀️ Світла</button>
+              <button className={`method-btn ${theme === 'dark' ? 'on-card' : ''}`} onClick={() => pickTheme('dark')}>🌙 Темна</button>
+              <button className={`method-btn ${theme === 'auto' ? 'on-card' : ''}`} onClick={() => pickTheme('auto')}>🔄 Авто</button>
             </div>
           </div>
           <div className="card keep-ro">

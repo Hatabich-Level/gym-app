@@ -1,4 +1,5 @@
 import React from 'react'
+import { CountUp } from '../components/UI'
 import { TODAY, abonStatus, fmtDate, getActiveAbon, visitedTodayAny, getMemberDebt, daysDiff } from '../utils'
 
 function daysDiffSafe(a, b) {
@@ -13,7 +14,9 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
   const active   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && abonStatus(a) === 'active' }).length
   const frozen   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && abonStatus(a) === 'frozen' }).length
   const ending   = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && ['ending','expired'].includes(abonStatus(a)) }).length
+  const attendable = members.filter(m => { const a = getActiveAbon(m.id, abons); return a && ['active','ending'].includes(abonStatus(a)) }).length
   const checked  = members.filter(m => visitedTodayAny(m.id, abons)).length
+  const ringShare = attendable > 0 ? Math.min(1, checked / attendable) : 0
   const todayAll = payments.filter(p => p.date === TODAY)
   function hallSum(method) {
     return todayAll.reduce((s, p) => {
@@ -43,12 +46,12 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
     const st = abonStatus(a)
     if (st === 'frozen') {
       const d = daysDiffSafe(a.freezeStart, TODAY)
-      alerts.push({ p: 2, id: m.id, phone: m.phone, name: m.name, tag: 'tag-ice', tagTxt: '❄️ Заморожено', sub: `Заморожено ${d} дн. тому`, dot: '#88aaff' })
+      alerts.push({ p: 2, id: m.id, phone: m.phone, name: m.name, tag: 'tag-ice', tagTxt: '❄️ Заморожено', sub: `Заморожено ${d} дн. тому`, dot: 'var(--ice)' })
     } else if (st === 'expired') {
-      alerts.push({ p: 0, id: m.id, phone: m.phone, name: m.name, tag: 'tag-red', tagTxt: 'Закінчився', sub: a.type === 'month' ? 'Закінчився ' + fmtDate(a.endDate) : 'Разовий використано', dot: '#ff5588' })
+      alerts.push({ p: 0, id: m.id, phone: m.phone, name: m.name, tag: 'tag-red', tagTxt: 'Закінчився', sub: a.type === 'month' ? 'Закінчився ' + fmtDate(a.endDate) : 'Разовий використано', dot: 'var(--red)' })
     } else if (st === 'ending') {
       const d = daysDiffSafe(TODAY, a.endDate)
-      alerts.push({ p: 1, id: m.id, phone: m.phone, name: m.name, tag: 'tag-ylw', tagTxt: '⚠️ ' + (d === 0 ? 'Сьогодні' : d + ' дн.'), sub: 'Закінчується ' + fmtDate(a.endDate), dot: '#f5a623' })
+      alerts.push({ p: 1, id: m.id, phone: m.phone, name: m.name, tag: 'tag-ylw', tagTxt: '⚠️ ' + (d === 0 ? 'Сьогодні' : d + ' дн.'), sub: 'Закінчується ' + fmtDate(a.endDate), dot: 'var(--ylw)' })
     }
   })
   alerts.sort((a, b) => a.p - b.p)
@@ -63,51 +66,58 @@ export default function HomePage({ members, abons, payments, role, uname, onNavi
 
       {/* Швидкі дії */}
       <div className="quick">
-        <button onClick={() => onNavigate('checkin')}><span className="qi">✅</span>Відмітити</button>
+        <button onClick={() => onNavigate('checkin')}><span className="qi" style={{ color: 'var(--grn)' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Відмітити</button>
         {isAdmin
-          ? <button onClick={onAddMember}><span className="qi">➕</span>Новий клієнт</button>
-          : <button onClick={() => onNavigate('trainers')}><span className="qi">👥</span>Мої клієнти</button>}
-        <button onClick={() => onNavigate('sessions')}><span className="qi">🏋️</span>Заняття</button>
+          ? <button onClick={onAddMember}><span className="qi" style={{ color: 'var(--acc)' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>Клієнт</button>
+          : <button onClick={() => onNavigate('trainers')}><span className="qi" style={{ color: 'var(--acc)' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>Клієнти</button>}
+        <button onClick={() => onNavigate('sessions')}><span className="qi" style={{ color: 'var(--ylw)' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/></svg></span>Заняття</button>
       </div>
+
+      {/* Hero: скільки клієнтів сьогодні відмічено */}
+      <div className="hero">
+        <div className="hero-ring">
+          <svg viewBox="0 0 112 112" width="104" height="104" aria-hidden="true">
+            <circle className="ring-bg" cx="56" cy="56" r="50" fill="none" strokeWidth="9" />
+            <circle className="ring-fg" cx="56" cy="56" r="50" fill="none" strokeWidth="9" strokeLinecap="round" style={{ '--off': 314 * (1 - ringShare) }} />
+          </svg>
+          <div className="hero-n"><b><CountUp value={checked} /></b><span>з {attendable}</span></div>
+        </div>
+        <div className="hero-t">
+          <div className="hero-live"><i />Сьогодні в залі</div>
+          <div className="hero-p">{attendable > 0 ? `${Math.round(ringShare * 100)}% клієнтів з діючим абонементом уже відмічено` : 'Ще немає клієнтів з діючим абонементом'}</div>
+          <div className="hero-d">{new Date().toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+        </div>
+      </div>
+
+      {isAdmin && (
+        <div className="card cash3">
+          <div><div className="k"><i style={{ background: 'var(--grn)' }} />Готівка</div><div className="v"><CountUp value={todayCash} spaced /></div></div>
+          <div><div className="k"><i style={{ background: 'var(--acc)' }} />Картка</div><div className="v"><CountUp value={todayCard} spaced /></div></div>
+          <div><div className="k">Разом сьогодні</div><div className="v" style={{ color: 'var(--acc)' }}><CountUp value={todayCash + todayCard} spaced /> <span style={{ fontSize: 11, fontWeight: 500 }}>грн</span></div></div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="stats2">
         <div className={`sc ${isAdmin ? 'clickable' : ''}`} onClick={isAdmin ? () => onNavigate('members', 'active') : undefined}>
-          <div className="sv">{active}</div>
+          <div className="sv"><CountUp value={active} /></div>
           <div className="sl">Активних абон.</div>
         </div>
         <div className="sc clickable" onClick={() => onNavigate('checkin')}>
-          <div className="sv" style={{ color: 'var(--grn)' }}>{checked}</div>
+          <div className="sv" style={{ color: 'var(--grn)' }}><CountUp value={checked} /></div>
           <div className="sl">Відмічено сьогодні</div>
         </div>
         {isAdmin && <>
           <div className="sc clickable" onClick={() => onNavigate('members', 'ending')}>
-            <div className="sv" style={{ color: 'var(--ylw)' }}>{ending}</div>
+            <div className="sv" style={{ color: 'var(--ylw)' }}><CountUp value={ending} /></div>
             <div className="sl">Закінчується скоро</div>
           </div>
           <div className="sc clickable" onClick={() => onNavigate('members', 'frozen')}>
-            <div className="sv" style={{ color: '#88aaff' }}>{frozen}</div>
+            <div className="sv" style={{ color: 'var(--ice)' }}><CountUp value={frozen} /></div>
             <div className="sl">Заморожених</div>
           </div>
         </>}
       </div>
-
-      {isAdmin && (todayCash > 0 || todayCard > 0) && (
-        <div className="stats3" style={{ marginBottom: 12 }}>
-          <div className="sc">
-            <div className="sv" style={{ color: 'var(--grn)' }}>{todayCash}</div>
-            <div className="sl">💵 Готівка</div>
-          </div>
-          <div className="sc">
-            <div className="sv" style={{ color: 'var(--acc)' }}>{todayCard}</div>
-            <div className="sl">💳 Картка</div>
-          </div>
-          <div className="sc">
-            <div className="sv">{todayCash + todayCard}</div>
-            <div className="sl">💰 Разом сьогодні</div>
-          </div>
-        </div>
-      )}
 
       <div className="dgrid2">
         {/* Debts summary */}

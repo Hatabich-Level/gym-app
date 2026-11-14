@@ -1,9 +1,22 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
-  --bg:#0d0f18;--s1:#151825;--s2:#1c2035;--s3:#242840;
-  --acc:#5b8df6;--acc2:#7c5df5;--grn:#27c97a;--red:#ff3366;
-  --ylw:#f5a623;--txt:#e4e8f5;--txt2:#7880a0;--brd:#252a42;
-  --r:14px;--r2:10px;
+  --bg:#ECF3F0;--s1:#ffffff;--s2:#E6EFEB;--s3:#D6E4DE;
+  --acc:#0F8B7D;--acc2:#19B8A0;--grn:#14A05C;--red:#E0245E;
+  --ylw:#C97A00;--txt:#10302B;--txt2:#62786F;--brd:#D9E6E0;
+  --r:22px;--r2:14px;
+  --navbg:#10302B;--acc-soft:rgba(15,139,125,.12);--ice:#2F6FB0;--red-t:#C81E52;
+  --shadow:0 1px 2px rgba(16,48,43,.05),0 8px 24px rgba(16,48,43,.07);
+  --outer:#D3E3DC;--ovl:rgba(236,243,240,.88);--on-acc:#fff;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#0A1311;--s1:#11211E;--s2:#172A26;--s3:#203631;
+  --acc:#2BD1B8;--acc2:#6AE6CF;--grn:#3DDC97;--red:#FF5C86;
+  --ylw:#F5B042;--txt:#E5F2EE;--txt2:#86A39B;--brd:#1F3731;
+  --navbg:#0F1D1A;--acc-soft:rgba(43,209,184,.14);--ice:#8FB6FF;--red-t:#FF8AA8;
+  --shadow:0 1px 0 rgba(255,255,255,.03) inset,0 8px 24px rgba(0,0,0,.35);
+  --outer:#050B09;--ovl:rgba(10,19,17,.88);--on-acc:#04231C;
+  color-scheme:dark;
 }
 body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
 
@@ -399,29 +412,6 @@ select:focus,input:focus{border-color:var(--acc)}
   .reminder-banner{padding-top:calc(max(env(safe-area-inset-top,0px),44px) + 6px)}
 }
 
-/* ══ Світла тема ═══════════════════════════════════════════════════════════ */
-:root[data-theme="light"]{
-  --bg:#f3f5fb;--s1:#ffffff;--s2:#eef1f9;--s3:#e1e6f3;
-  --acc:#3d6fe0;--acc2:#6a4ce0;--grn:#14a05c;--red:#e0245e;
-  --ylw:#c97a00;--txt:#1a2038;--txt2:#5b647f;--brd:#dde2f0;
-  color-scheme:light;
-}
-:root[data-theme="light"] .tag-red{color:#c81e52}
-:root[data-theme="light"] .tag-ice,
-:root[data-theme="light"] .btn-ice,
-:root[data-theme="light"] .frozen-banner{color:#3a5cc0}
-:root[data-theme="light"] .btn-red,
-:root[data-theme="light"] .icon-btn.del,
-:root[data-theme="light"] .alert-dismiss:hover,
-:root[data-theme="light"] .sel-chip .x:hover{color:#c81e52}
-:root[data-theme="light"] .btn-grn{color:#fff}
-:root[data-theme="light"] .nb:hover{background:rgba(0,0,0,.04)}
-:root[data-theme="light"] .mi:hover,
-:root[data-theme="light"] .payment-item:hover,
-:root[data-theme="light"] .alert-item:hover{background:rgba(0,0,0,.03)}
-:root[data-theme="light"] .card{box-shadow:0 1px 2px rgba(30,40,80,.06)}
-:root[data-theme="light"] .sel-chip .x{background:rgba(0,0,0,.06)}
-
 /* ══ Швидкі дії (головна) ═════════════════════════════════════════════════ */
 .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .quick button{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:12px 4px 10px;color:var(--txt);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600;transition:transform .12s,border-color .15s}
@@ -467,3 +457,94 @@ body.ro .keep-ro,body.ro .keep-ro *{opacity:1!important;pointer-events:auto!impo
 .chip-btn{background:var(--s2);border:1px solid var(--brd);color:var(--txt);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px}
 .chip-btn:active{transform:scale(.97)}
 .rem-text{width:100%;min-height:120px;background:var(--s2);border:1px solid var(--brd);border-radius:var(--r2);color:var(--txt);padding:10px;font-size:15px;font-family:inherit;resize:vertical}
+
+
+/* ══ СТИЛЬ v2 («B»): м'які картки, плаваюча панель, анімації ═════════════════ */
+body{background:var(--bg)}
+.card,.sc{box-shadow:var(--shadow)}
+.tag-red{color:var(--red-t)}.tag-ice{color:var(--ice)}.tag-blue{color:var(--acc)}
+.btn-red,.icon-btn.del{color:var(--red-t)}
+.btn-ice,.frozen-banner{color:var(--ice)}
+.alert-dismiss:hover,.sel-chip .x:hover{color:var(--red-t)}
+.sel-chip .x{background:rgba(128,128,128,.16)}
+.btn-grn{color:var(--on-acc)}
+.btn-acc,.checkin-btn,.ava{color:var(--on-acc)}
+.loading-overlay{background:var(--ovl)}
+.hdr{box-shadow:0 1px 0 var(--brd)}
+select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+.tab.on{background:var(--acc-soft);color:var(--acc);border-color:transparent;font-weight:600}
+.method-btn.on-card{background:var(--acc-soft);color:var(--acc);border-color:var(--acc)}
+
+@keyframes itemIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes rowIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+@keyframes ringIn{to{stroke-dashoffset:var(--off,0)}}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(124,242,182,.75)}70%{box-shadow:0 0 0 8px rgba(124,242,182,0)}100%{box-shadow:0 0 0 0 rgba(124,242,182,0)}}
+@keyframes navPop{0%{transform:scale(.8)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+
+.pg > *{animation:itemIn .5s cubic-bezier(.22,1,.36,1) backwards}
+.pg > *:nth-child(2){animation-delay:.05s}.pg > *:nth-child(3){animation-delay:.1s}
+.pg > *:nth-child(4){animation-delay:.15s}.pg > *:nth-child(5){animation-delay:.2s}
+.pg > *:nth-child(6){animation-delay:.25s}.pg > *:nth-child(n+7){animation-delay:.3s}
+.mtable .mi{animation:rowIn .4s cubic-bezier(.22,1,.36,1) backwards}
+.mtable .mi:nth-child(3){animation-delay:.03s}.mtable .mi:nth-child(4){animation-delay:.06s}
+.mtable .mi:nth-child(5){animation-delay:.09s}.mtable .mi:nth-child(6){animation-delay:.12s}
+.mtable .mi:nth-child(7){animation-delay:.15s}.mtable .mi:nth-child(8){animation-delay:.18s}
+.mtable .mi:nth-child(n+9){animation-delay:.21s}
+.card,.sc,.quick button,.btn,.tab,.mi,.alert-item{transition:transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .2s,border-color .2s,background .2s,opacity .15s}
+.card:active{transform:none}
+.sc.clickable:active,.quick button:active{transform:scale(.95)}
+.btn:active{transform:scale(.97)}
+.alert-item:active,.mi:active{transform:scale(.985)}
+.ai-tag{transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
+.mi:hover .ai-tag,.alert-item:hover .ai-tag{transform:scale(1.06)}
+.ava{box-shadow:0 4px 12px var(--acc-soft)}
+
+/* Головна: швидкі дії-«таблетки», hero-кільце, каса */
+.quick{gap:8px}
+.quick button{flex-direction:row;justify-content:center;gap:7px;padding:13px 6px;border-radius:var(--r2);font-size:13px;box-shadow:var(--shadow)}
+.quick .qi{display:inline-flex;width:18px;height:18px}
+.quick .qi svg{width:18px;height:18px}
+.hero{display:flex;align-items:center;gap:18px;padding:18px 20px;border-radius:var(--r);margin-bottom:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--on-acc);box-shadow:0 14px 34px var(--acc-soft);position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-40px;top:-40px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.12)}
+.hero-ring{position:relative;width:104px;height:104px;flex-shrink:0}
+.hero-ring svg{transform:rotate(-90deg);display:block}
+.hero-ring .ring-bg{stroke:rgba(255,255,255,.25)}
+.hero-ring .ring-fg{stroke:currentColor;stroke-dasharray:314;stroke-dashoffset:314;animation:ringIn 1.4s cubic-bezier(.22,1,.36,1) .35s forwards}
+.hero-n{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hero-n b{font-size:28px;font-weight:700;line-height:1}
+.hero-n span{font-size:10px;opacity:.8;margin-top:2px}
+.hero-t{position:relative;z-index:1;min-width:0}
+.hero-live{display:flex;align-items:center;gap:6px;font-size:12px;opacity:.92}
+.hero-live i{width:8px;height:8px;border-radius:50%;background:#7CF2B6;animation:livePulse 1.8s infinite}
+.hero-p{font-size:15px;font-weight:600;margin-top:6px;line-height:1.3}
+.hero-d{font-size:12px;opacity:.8;margin-top:6px}
+.cash3{display:grid;grid-template-columns:1fr 1fr 1fr;padding:12px 6px;margin-bottom:12px}
+.cash3 > div{text-align:center;padding:0 4px}
+.cash3 > div + div{border-left:1px solid var(--brd)}
+.cash3 .k{font-size:11px;color:var(--txt2);display:flex;align-items:center;justify-content:center;gap:5px}
+.cash3 .k i{width:7px;height:7px;border-radius:50%}
+.cash3 .v{font-size:19px;font-weight:700;margin-top:3px}
+
+/* Плаваюча нижня панель (телефон/планшет) */
+@media (max-width: 1023px){
+  .nav{left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom,0px));border:none;border-radius:30px;background:var(--navbg);box-shadow:0 14px 30px rgba(16,48,43,.35);padding:6px 6px;gap:2px}
+  .nb{color:rgba(255,255,255,.55);border-radius:24px;padding:8px 0 6px}
+  .nb.on{color:var(--navbg);background:#fff}
+  :root[data-theme="dark"] .nb.on{background:var(--acc);color:var(--on-acc)}
+  .nb.on svg{animation:navPop .35s cubic-bezier(.34,1.56,.64,1)}
+  .pg{padding-bottom:108px}
+}
+@media (min-width: 720px) and (max-width: 1023px){
+  body{background:var(--outer)}
+  .nav{left:50%;right:auto;width:612px;transform:translateX(-50%);border-radius:30px}
+  .pg{box-shadow:0 0 40px rgba(16,48,43,.12)}
+}
+@media (min-width: 1024px){
+  body{background:var(--outer)}
+  .pg{background:var(--bg)}
+  .nb.on{background:var(--acc-soft);color:var(--acc)}
+  .nb.on::before{background:var(--acc)}
+  .nb:hover{background:var(--acc-soft);color:var(--txt)}
+  .mi:hover,.payment-item:hover,.alert-item:hover{background:var(--acc-soft)}
+  .nav{box-shadow:none;background:var(--s1)}
+}

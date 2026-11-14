@@ -432,7 +432,7 @@ function ActiveAbonCard({ abon, status, role, debt, onPay, onExtend, onFreeze, o
           <div className="irow"><span className="ikey">Початок</span><span className="ival">{fmtDate(abon.startDate)}</span></div>
           <div className="irow"><span className="ikey">Закінчення</span><span className="ival">{fmtDate(abon.endDate)}</span></div>
           {abon.extraDays > 0 && (
-            <div className="irow"><span className="ikey">Додано (заморозка)</span><span className="ival" style={{ color: '#88aaff' }}>+{abon.extraDays} дн.</span></div>
+            <div className="irow"><span className="ikey">Додано (заморозка)</span><span className="ival" style={{ color: 'var(--ice)' }}>+{abon.extraDays} дн.</span></div>
           )}
           {(st === 'active' || st === 'ending') && rem !== null && (
             <>
