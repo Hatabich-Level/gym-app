@@ -548,3 +548,24 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
   .mi:hover,.payment-item:hover,.alert-item:hover{background:var(--acc-soft)}
   .nav{box-shadow:none;background:var(--s1)}
 }
+
+/* ══ Дзвіночок сповіщень і нижній лист ═════════════════════════════════════ */
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes backIn{from{opacity:0}to{opacity:1}}
+@keyframes bellRing{0%,100%{transform:rotate(0)}15%{transform:rotate(16deg)}30%{transform:rotate(-14deg)}45%{transform:rotate(10deg)}60%{transform:rotate(-6deg)}75%{transform:rotate(3deg)}}
+@keyframes badgePulse{0%{box-shadow:0 0 0 0 rgba(224,36,94,.6)}70%{box-shadow:0 0 0 7px rgba(224,36,94,0)}100%{box-shadow:0 0 0 0 rgba(224,36,94,0)}}
+.bell-btn{position:relative;background:none;border:1px solid var(--brd);border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--txt2);display:flex;align-items:center;transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
+.bell-btn:active{transform:scale(.9)}
+.bell-btn svg{transform-origin:50% 0;animation:bellRing 1.4s ease .6s 2}
+.bell-badge{position:absolute;top:-6px;right:-6px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;animation:badgePulse 1.9s infinite}
+.sheet-back{position:fixed;inset:0;background:rgba(8,20,17,.5);z-index:500;display:flex;align-items:flex-end;justify-content:center;animation:backIn .2s ease both}
+.sheet{width:100%;max-width:520px;max-height:82vh;overflow-y:auto;background:var(--s1);border-radius:26px 26px 0 0;padding:10px 16px calc(18px + env(safe-area-inset-bottom,0px));box-sizing:border-box;animation:sheetUp .35s cubic-bezier(.22,1,.36,1) both;box-shadow:0 -10px 40px rgba(0,0,0,.25)}
+.sheet-grip{width:40px;height:4px;border-radius:2px;background:var(--brd);margin:0 auto 10px}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;font-size:17px;font-weight:700;margin-bottom:6px}
+.sheet-x{background:var(--s2);border:none;color:var(--txt2);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:13px}
+.sheet-row{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--brd);cursor:pointer;transition:background .15s,transform .15s}
+.sheet-row:last-child{border-bottom:none}
+.sheet-row:active{transform:scale(.98);background:var(--acc-soft)}
+.sheet-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.sheet-btn{background:var(--s2);border:1px solid var(--brd);border-radius:10px;padding:6px 9px;cursor:pointer;font-size:15px}
+@media (prefers-reduced-motion:reduce){.bell-btn svg,.bell-badge,.sheet,.sheet-back{animation:none!important}}

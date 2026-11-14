@@ -31,6 +31,7 @@ export default function App() {
   const [loadError, setLoadError] = useState('')
   const [, setDayTick] = useState(0)
   const [remindId, setRemindId] = useState(null)
+  const [bellOpen, setBellOpen] = useState(false)
 
   const store = useStore()
 
@@ -250,15 +251,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Reminder banner */}
-      {isAdmin && endingCount > 0 && !reminderDismissed && page !== 'members' && (
-        <ReminderBanner
-          count={endingCount}
-          onClick={() => { navigate('members', 'ending'); setReminderDismissed(true) }}
-          onClose={() => setReminderDismissed(true)}
-        />
-      )}
-
       {store.readOnly && <div className="ro-banner">👁 Режим перегляду — змінювати дані не можна</div>}
 
       {/* Header */}
@@ -269,6 +261,12 @@ export default function App() {
             <p>Сьогодні: {new Date().toLocaleDateString('uk-UA')} · {isOwner ? '👑 Головний адмін' : isAdmin ? '🛠 Адмін' : '🏋️ Тренер'} {uname}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {isAdmin && (
+              <button className="bell-btn keep-ro" onClick={() => setBellOpen(true)} aria-label={`Сповіщення: ${endingCount}`} title="Сповіщення">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+                {endingCount > 0 && <span className="bell-badge">{endingCount > 9 ? '9+' : endingCount}</span>}
+              </button>
+            )}
             <button
               style={{ background: 'none', border: '1px solid var(--brd)', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: 'var(--txt2)', display: 'flex', alignItems: 'center' }}
               onClick={loadData}
@@ -417,6 +415,16 @@ export default function App() {
         </div>
       )}
 
+      {bellOpen && isAdmin && (
+        <NotifSheet
+          members={store.members} abons={store.abons}
+          onClose={() => setBellOpen(false)}
+          onOpenMember={(id) => { setBellOpen(false); setMemberDetailId(id) }}
+          onRemind={(id) => { setBellOpen(false); setRemindId(id) }}
+          onAll={() => { setBellOpen(false); navigate('members', 'ending') }}
+        />
+      )}
+
       {remindId && (() => {
         const m = store.members.find(x => x.id === remindId)
         return m ? <ReminderModal member={m} abons={store.abons} payments={store.payments} onClose={() => setRemindId(null)} /> : null
@@ -438,6 +446,48 @@ export default function App() {
         </nav>
       )}
     </>
+  )
+}
+
+// ── Сповіщення (дзвіночок): абонементи, що закінчуються / закінчились ──────────
+function NotifSheet({ members, abons, onClose, onOpenMember, onRemind, onAll }) {
+  const rows = members.map(m => {
+    const a = getActiveAbon(m.id, abons)
+    const st = a ? abonStatus(a) : null
+    if (st !== 'expired' && st !== 'ending') return null
+    const d = st === 'ending' ? daysDiff(TODAY, a.endDate) : 0
+    return { m, a, st, d }
+  }).filter(Boolean).sort((x, y) => (x.st === y.st ? (x.a.endDate || '').localeCompare(y.a.endDate || '') : x.st === 'expired' ? -1 : 1))
+
+  return (
+    <div className="sheet-back" onClick={onClose}>
+      <div className="sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Сповіщення">
+        <div className="sheet-grip" />
+        <div className="sheet-h">
+          <span>Сповіщення</span>
+          <button className="sheet-x" onClick={onClose} aria-label="Закрити">✕</button>
+        </div>
+        {rows.length === 0 ? (
+          <div className="empty" style={{ padding: '26px 0' }}>✅ Усе добре — нічого не закінчується</div>
+        ) : (
+          <div className="sheet-list">
+            {rows.slice(0, 12).map(({ m, a, st, d }) => (
+              <div key={m.id} className="sheet-row" onClick={() => onOpenMember(m.id)}>
+                <span className="sheet-dot" style={{ background: st === 'expired' ? 'var(--red)' : 'var(--ylw)' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--txt2)' }}>
+                    {st === 'expired' ? (a.type === 'month' ? 'Закінчився ' + a.endDate.split('-').reverse().join('.') : 'Разовий використано') : `Закінчується ${a.endDate.split('-').reverse().join('.')} · ${d === 0 ? 'сьогодні' : 'через ' + d + ' дн.'}`}
+                  </div>
+                </div>
+                {m.phone && <button className="sheet-btn" onClick={e => { e.stopPropagation(); onRemind(m.id) }} aria-label="Нагадати клієнту">💬</button>}
+              </div>
+            ))}
+          </div>
+        )}
+        {rows.length > 0 && <button className="btn btn-acc" style={{ marginTop: 12 }} onClick={onAll}>Показати всіх ({rows.length}) →</button>}
+      </div>
+    </div>
   )
 }
 
