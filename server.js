@@ -126,7 +126,7 @@ async function auth(req, res, next) {
   if (u.pwdAt && (t.iat || 0) < u.pwdAt) return res.status(401).json({ error: 'unauthorized' });
   req.user = { uid: u.id, role: u.role, name: u.name || '', readOnly: !!u.readOnly && u.role !== 'owner' };
   // Режим «лише перегляд»: будь-яка зміна даних заборонена на рівні сервера
-  if (req.user.readOnly && req.method !== 'GET') {
+  if (req.user.readOnly && req.method !== 'GET' && req.originalUrl !== '/api/me/color') {
     return res.status(403).json({ error: 'Ваш акаунт у режимі «лише перегляд» — змінювати дані не можна' });
   }
   next();
@@ -762,6 +762,18 @@ app.post('/api/users/:id/color', auth, ownerOnly, async (req, res) => {
   const { color } = req.body || {};
   if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) return res.status(400).json({ error: 'Некоректний колір (формат #RRGGBB)' });
   const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
+  const user = rows[0].data;
+  user.color = color;
+  await upsert('users', [user]);
+  res.json({ ok: true, color });
+});
+
+// Кожен змінює колір ЛИШЕ свого акаунта (навіть у режимі «лише перегляд»)
+app.post('/api/me/color', auth, async (req, res) => {
+  const { color } = req.body || {};
+  if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) return res.status(400).json({ error: 'Некоректний колір (формат #RRGGBB)' });
+  const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.user.uid]);
   if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
   const user = rows[0].data;
   user.color = color;

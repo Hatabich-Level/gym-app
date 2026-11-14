@@ -404,6 +404,8 @@ export default function App() {
               onReset={store.load} isOwner={isOwner}
               onLogout={handleLogout} uname={uname} role={role}
               members={store.members} pushMembers={store.pushMembers} updateUserReadOnly={store.updateUserReadOnly}
+              myColor={((store.trainers || []).find(t => t.id === auth.uid) || (store.users || []).find(u => u.id === auth.uid) || {}).color || ''}
+              saveMyColor={(c) => store.updateMyColor(auth.uid, c)}
               users={store.users} auditLog={store.auditLog}
               createUser={store.createUser} deleteUser={store.deleteUser} changeUserPassword={store.changeUserPassword} updateUserColor={store.updateUserColor} updateUserTerms={store.updateUserTerms}
               abons={store.abons} pushAbons={store.pushAbons}
@@ -475,7 +477,7 @@ function NewMemberModal({ onSave, onClose }) {
 }
 
 // ── Settings page ─────────────────────────────────────────────────────────────
-function SettingsPage({ onReset, onLogout, uname, role, members, pushMembers, updateUserReadOnly, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
+function SettingsPage({ myColor, saveMyColor, onReset, onLogout, uname, role, members, pushMembers, updateUserReadOnly, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('view')
   const [theme, setThemeState] = useState(getTheme())
@@ -530,6 +532,18 @@ function SettingsPage({ onReset, onLogout, uname, role, members, pushMembers, up
             <div className="method-toggle">
               <button className={`method-btn ${theme === 'dark' ? 'on-card' : ''}`} onClick={() => pickTheme('dark')}>🌙 Темна</button>
               <button className={`method-btn ${theme === 'light' ? 'on-card' : ''}`} onClick={() => pickTheme('light')}>☀️ Світла</button>
+            </div>
+          </div>
+          <div className="card keep-ro">
+            <div className="ct">Мій колір</div>
+            <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 10, lineHeight: 1.5 }}>
+              Цим кольором позначається твоє ім'я на заняттях, у фінансах і в списках клієнтів.
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {['#FFC000', '#5B9BD5', '#ED7D31', '#70AD47', '#FF3366', '#7C5DF5', '#A5A5A5'].map(c => (
+                <button key={c} aria-label={'Колір ' + c} onClick={() => saveMyColor(c).catch(e => alert(e.message))}
+                  style={{ width: 38, height: 38, borderRadius: '50%', background: c, cursor: 'pointer', border: (myColor || '').toLowerCase() === c.toLowerCase() ? '3px solid var(--txt)' : '2px solid var(--brd)', transition: 'transform .15s' }} />
+              ))}
             </div>
           </div>
           <div className="card keep-ro">

@@ -189,6 +189,15 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
+  const updateMyColor = useCallback(async (myId, color) => {
+    setLoading(true)
+    try {
+      await api('/me/color', 'POST', { color })
+      setUsers(prev => prev.map(u => { if (u.id === myId) { setTrainerColor(myId, u.name || u.login, color); return { ...u, color } } return u }))
+      setTrainers(prev => prev.map(u => { if (u.id === myId) { setTrainerColor(myId, u.name, color); return { ...u, color } } return u }))
+    } finally { setLoading(false) }
+  }, [])
+
   const updateUserReadOnly = useCallback(async (id, ro) => {
     setLoading(true)
     try {
@@ -246,7 +255,7 @@ export function useStore() {
     load, refresh, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,
-    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, updateUserReadOnly, unlinkCard, assignTrainer,
+    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, updateUserReadOnly, updateMyColor, unlinkCard, assignTrainer,
     setAbons, setMembers
   }
 }
