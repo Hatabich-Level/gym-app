@@ -257,6 +257,12 @@ function abonUsable(ab) {
   if (ab.type === 'visit' && !ab.active) return { ok: false, reason: 'Абонемент вже використано' };
   return { ok: true };
 }
+function abonDaysLeft(ab) {
+  if (ab.type !== 'month' || !ab.endDate) return null;
+  const d = s => Date.UTC(+s.slice(0,4), +s.slice(5,7)-1, +s.slice(8,10));
+  return Math.round((d(ab.endDate) - d(TODAY_STR())) / 86400000);
+}
+function abonEndShort(ab) { return ab.type === 'month' && ab.endDate ? ab.endDate.slice(8,10) + '.' + ab.endDate.slice(5,7) : ''; }
 function abonStatusLabel(ab) {
   if (ab.type === 'month') return `до ${ab.endDate}`;
   if (ab.type === 'visit') return 'разовий';
@@ -311,7 +317,7 @@ app.post('/api/device/checkin', deviceAuth, async (req, res) => {
   const today = TODAY_STR();
   const already = (abon.visits || []).some(v => v.date === today);
   if (already) {
-    return res.json({ ok: true, alreadyToday: true, memberName: member.name, status: abonStatusLabel(abon) });
+    return res.json({ ok: true, alreadyToday: true, memberName: member.name, status: abonStatusLabel(abon), endShort: abonEndShort(abon), daysLeft: abonDaysLeft(abon) });
   }
 
   const updated = {
@@ -321,7 +327,7 @@ app.post('/api/device/checkin', deviceAuth, async (req, res) => {
   if (updated.type === 'visit') updated.active = false; // разовий одразу закривається
   await upsert('abons', [updated]);
 
-  res.json({ ok: true, memberName: member.name, status: abonStatusLabel(abon) });
+  res.json({ ok: true, memberName: member.name, status: abonStatusLabel(abon), endShort: abonEndShort(abon), daysLeft: abonDaysLeft(abon) });
 });
 
 app.get('/api/state', auth, async (req, res) => {
