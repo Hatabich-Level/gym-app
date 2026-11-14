@@ -523,7 +523,7 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 
 /* Плаваюча нижня панель (телефон/планшет) */
 @media (max-width: 1023px){
-  .nav{left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom,0px));border:none;border-radius:30px;background:var(--navbg);box-shadow:0 14px 30px rgba(16,48,43,.35);padding:6px 6px;gap:2px}
+  .nav{left:14px;right:14px;bottom:max(10px,calc(env(safe-area-inset-bottom,0px) - 14px));border:none;border-radius:30px;background:var(--navbg);box-shadow:0 14px 30px rgba(16,48,43,.35);padding:6px 6px;gap:2px}
   .nb{color:rgba(255,255,255,.55);border-radius:24px;padding:8px 0 6px}
   .nb.on{color:var(--navbg);background:#fff}
   :root[data-theme="dark"] .nb.on{background:var(--acc);color:var(--on-acc)}
