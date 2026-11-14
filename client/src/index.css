@@ -601,3 +601,7 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 .hdr{padding-top:calc(env(safe-area-inset-top,0px) + 14px)}
 @media (display-mode:standalone){ .hdr{padding-top:calc(max(env(safe-area-inset-top,0px),44px) + 10px)} }
 @media (min-width:1024px){ .hdr{padding-top:22px} }
+/* рука махає постійно: махи + пауза */
+@keyframes waveHand2{0%{transform:rotate(0)}6%{transform:rotate(18deg)}12%{transform:rotate(-10deg)}18%{transform:rotate(16deg)}24%{transform:rotate(-8deg)}30%{transform:rotate(12deg)}36%,100%{transform:rotate(0)}}
+.hdr-wave{transform-origin:70% 85%;animation:waveHand2 3.2s ease-in-out .5s infinite;will-change:transform}
+@media (prefers-reduced-motion:reduce){.hdr-wave{animation:none}}
