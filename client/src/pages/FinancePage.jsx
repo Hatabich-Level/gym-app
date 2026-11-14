@@ -231,8 +231,8 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
 
   return <>
     {unconfirmed.length > 0 && (
-      <div className="card" style={{ border: '1px solid rgba(245,166,35,.4)', background: 'rgba(245,166,35,.06)' }}>
-        <div className="ct" style={{ color: 'var(--ylw)' }}>⚠️ Не підтверджено оплату зала ({unconfirmed.length})</div>
+      <div className="card unconf-card">
+        <div className="ct" style={{ color: 'var(--ylw)' }}>Не підтверджено оплату зала ({unconfirmed.length})</div>
         <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 10 }}>
           Тренер записав, але не вказав, як гроші пішли від тренера до зали. Познач сам:
         </div>
@@ -247,8 +247,14 @@ function PaymentsTab({ payments, members, abons, role, uname, deletePayment, pus
                 <div style={{ color: 'var(--txt2)' }}>{fmtDate(p.date)}{p.time ? ' ' + p.time : ''}{p.trainer ? <> · <TDot color={trainerColorByName(p.trainer)} />{p.trainer}</> : ''} · {amt} грн</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <button className="chip" onClick={() => confirmHall(p, 'cash')}>💵</button>
-                <button className="chip" onClick={() => confirmHall(p, 'card')}>💳</button>
+                <button className="pay-btn p-cash" onClick={() => confirmHall(p, 'cash')} aria-label="Готівка">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/></svg>
+                  <span>Готівка</span>
+                </button>
+                <button className="pay-btn p-card" onClick={() => confirmHall(p, 'card')} aria-label="Картка">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>
+                  <span>Картка</span>
+                </button>
               </div>
             </div>
           )

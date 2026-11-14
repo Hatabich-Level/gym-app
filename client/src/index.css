@@ -606,3 +606,11 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 @keyframes waveHand2{0%{transform:rotate(0)}6%{transform:rotate(18deg)}12%{transform:rotate(-10deg)}18%{transform:rotate(16deg)}24%{transform:rotate(-8deg)}30%{transform:rotate(12deg)}36%,100%{transform:rotate(0)}}
 .hdr-wave{transform-origin:70% 85%;animation:waveHand2 3.2s ease-in-out .5s infinite;will-change:transform}
 @media (prefers-reduced-motion:reduce){.hdr-wave{animation:none}}
+
+/* кнопки підтвердження оплати */
+.unconf-card{border:1px solid color-mix(in srgb,var(--ylw) 40%,transparent)!important;background:color-mix(in srgb,var(--ylw) 8%,var(--s1))!important}
+.pay-btn{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 13px;border-radius:13px;border:none;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:transform .2s cubic-bezier(.34,1.56,.64,1),filter .15s}
+.pay-btn:active{transform:scale(.92)}
+.pay-btn.p-cash{background:color-mix(in srgb,var(--grn) 16%,transparent);color:var(--grn)}
+.pay-btn.p-card{background:color-mix(in srgb,var(--ice) 16%,transparent);color:var(--ice)}
+@media (max-width:380px){.pay-btn span{display:none}.pay-btn{padding:0 11px}}
