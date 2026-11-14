@@ -158,7 +158,7 @@ export default function MembersPage({ members, abons, role, isOwner, onOpen, onA
       )}
 
       {/* List */}
-      <div key={tab} className="mtable" style={{ animation: 'fadeIn .2s ease both' }}>
+      <div key={tab} className="mtable">
         {shown.length === 0 ? (
           <Empty />
         ) : (

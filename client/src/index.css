@@ -27,7 +27,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes popIn{from{opacity:0;transform:scale(.96) translateY(4px)}to{opacity:1;transform:scale(1) translateY(0)}}
 
-.pg{animation:pageIn .28s cubic-bezier(.22,1,.36,1)}
+.pg{animation:none}
 .fullscreen{animation:slideInRight .26s cubic-bezier(.22,1,.36,1)}
 .modal{animation:slideInRight .26s cubic-bezier(.22,1,.36,1)}
 .card{animation:popIn .22s cubic-bezier(.22,1,.36,1)}
@@ -481,15 +481,11 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(124,242,182,.75)}70%{box-shadow:0 0 0 8px rgba(124,242,182,0)}100%{box-shadow:0 0 0 0 rgba(124,242,182,0)}}
 @keyframes navPop{0%{transform:scale(.8)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
 
-.pg > *{animation:itemIn .5s cubic-bezier(.22,1,.36,1) backwards}
+.pg > *{animation:fadeIn .45s ease backwards}
+.pg > .quick,.pg > .hero,.pg > .cash3,.pg > .stats2,.pg > .stats3{animation:itemIn .5s cubic-bezier(.22,1,.36,1) backwards}
 .pg > *:nth-child(2){animation-delay:.05s}.pg > *:nth-child(3){animation-delay:.1s}
 .pg > *:nth-child(4){animation-delay:.15s}.pg > *:nth-child(5){animation-delay:.2s}
 .pg > *:nth-child(6){animation-delay:.25s}.pg > *:nth-child(n+7){animation-delay:.3s}
-.mtable .mi{animation:rowIn .4s cubic-bezier(.22,1,.36,1) backwards}
-.mtable .mi:nth-child(3){animation-delay:.03s}.mtable .mi:nth-child(4){animation-delay:.06s}
-.mtable .mi:nth-child(5){animation-delay:.09s}.mtable .mi:nth-child(6){animation-delay:.12s}
-.mtable .mi:nth-child(7){animation-delay:.15s}.mtable .mi:nth-child(8){animation-delay:.18s}
-.mtable .mi:nth-child(n+9){animation-delay:.21s}
 .card,.sc,.quick button,.btn,.tab,.mi,.alert-item{transition:transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .2s,border-color .2s,background .2s,opacity .15s}
 .card:active{transform:none}
 .sc.clickable:active,.quick button:active{transform:scale(.95)}
@@ -569,3 +565,14 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 .sheet-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .sheet-btn{background:var(--s2);border:1px solid var(--brd);border-radius:10px;padding:6px 9px;cursor:pointer;font-size:15px}
 @media (prefers-reduced-motion:reduce){.bell-btn svg,.bell-badge,.sheet,.sheet-back{animation:none!important}}
+
+
+/* ── Захист від падіння на iPhone: довгі списки не анімуємо цілком ─────────── */
+/* Велика висока сторінка + transform-анімація = гігантський шар у пам'яті → Safari
+   «Повторення проблеми». Тому лише перші рядки мають вхідну анімацію. */
+.pg > .mtable,.pg > .card.mtable{animation:none}
+.mtable .mi{animation:none}
+.mtable .mi{transition:background .15s}
+.mtable .mi:active{transform:none}
+/* Рядки поза екраном не рендеряться, поки їх не прокрутять (Safari 18+, Chrome) */
+.mtable .mi{content-visibility:auto;contain-intrinsic-size:auto 62px}
