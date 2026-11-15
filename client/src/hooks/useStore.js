@@ -198,11 +198,11 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
-  const updateMyPrice = useCallback(async (price) => {
+  const updateMyPrice = useCallback(async (prices) => {
     setLoading(true)
     try {
-      const res = await api('/me/price', 'POST', { price })
-      setMyTerms(prev => ({ ...(prev || {}), sessionPrice: res.sessionPrice ?? undefined }))
+      const res = await api('/me/price', 'POST', prices)
+      setMyTerms(prev => ({ ...(prev || {}), sessionPrice: res.sessionPrice ?? undefined, splitPrice: res.splitPrice ?? undefined }))
     } finally { setLoading(false) }
   }, [])
 

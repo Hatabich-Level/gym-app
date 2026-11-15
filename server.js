@@ -372,6 +372,7 @@ app.get('/api/state', auth, async (req, res) => {
         t.hallFee = r.data.hallFee;
         t.splitHallFee = r.data.splitHallFee;
         t.sessionPrice = r.data.sessionPrice;
+        t.splitPrice = r.data.splitPrice;
       }
       return t;
     });
@@ -387,6 +388,7 @@ app.get('/api/state', auth, async (req, res) => {
         hallFee: me.hallFee,
         splitHallFee: me.splitHallFee,
         sessionPrice: me.sessionPrice,
+        splitPrice: me.splitPrice,
       };
     }
   }
@@ -791,15 +793,21 @@ app.post('/api/me/color', auth, async (req, res) => {
 
 // Тренер вказує ціну свого разового заняття (підставляється у форму «Нове заняття»)
 app.post('/api/me/price', auth, async (req, res) => {
-  const raw = req.body ? req.body.price : null;
-  const price = (raw === null || raw === '' || raw === undefined) ? null : Number(raw);
-  if (price !== null && (!Number.isFinite(price) || price < 0 || price > 100000)) return res.status(400).json({ error: 'Некоректна ціна' });
+  const body = req.body || {};
+  const parse = raw => (raw === null || raw === '' || raw === undefined) ? null : Number(raw);
+  const bad = v => v !== null && (!Number.isFinite(v) || v < 0 || v > 100000);
   const { rows } = await pool.query('SELECT data FROM users WHERE id = $1', [req.user.uid]);
   if (!rows.length) return res.status(404).json({ error: 'Акаунт не знайдено' });
   const user = rows[0].data;
-  if (price === null) delete user.sessionPrice; else user.sessionPrice = Math.round(price);
+  // ціна одиночного заняття (price) і ціна спліту з кожного (splitPrice) — кожну можна передати окремо
+  for (const [key, field] of [['price', 'sessionPrice'], ['splitPrice', 'splitPrice']]) {
+    if (!(key in body)) continue;
+    const v = parse(body[key]);
+    if (bad(v)) return res.status(400).json({ error: 'Некоректна ціна' });
+    if (v === null) delete user[field]; else user[field] = Math.round(v);
+  }
   await upsert('users', [user]);
-  res.json({ ok: true, sessionPrice: user.sessionPrice ?? null });
+  res.json({ ok: true, sessionPrice: user.sessionPrice ?? null, splitPrice: user.splitPrice ?? null });
 });
 
 // Режим «лише перегляд» для акаунта (owner не можна обмежити)

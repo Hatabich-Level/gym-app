@@ -405,7 +405,7 @@ export default function App() {
               onReset={store.load} isOwner={isOwner}
               onLogout={handleLogout} uname={uname} role={role}
               members={store.members} pushMembers={store.pushMembers} updateUserReadOnly={store.updateUserReadOnly}
-              myPrice={store.myTerms && store.myTerms.sessionPrice} saveMyPrice={store.updateMyPrice}
+              myPrice={store.myTerms && store.myTerms.sessionPrice} mySplitPrice={store.myTerms && store.myTerms.splitPrice} saveMyPrice={store.updateMyPrice}
               myColor={((store.trainers || []).find(t => t.id === auth.uid) || (store.users || []).find(u => u.id === auth.uid) || {}).color || ''}
               saveMyColor={(c) => store.updateMyColor(auth.uid, c)}
               users={store.users} auditLog={store.auditLog}
@@ -531,29 +531,39 @@ function NewMemberModal({ onSave, onClose }) {
 }
 
 // ── Settings page ─────────────────────────────────────────────────────────────
-function MyPriceCard({ myPrice, saveMyPrice }) {
+function MyPriceCard({ myPrice, mySplitPrice, saveMyPrice }) {
   const [val, setVal] = useState(myPrice ? String(myPrice) : '')
+  const [spl, setSpl] = useState(mySplitPrice ? String(mySplitPrice) : '')
   const [saved, setSaved] = useState(false)
   async function save() {
-    try { await saveMyPrice(val === '' ? null : Number(val)); setSaved(true); setTimeout(() => setSaved(false), 1800) }
-    catch (e) { alert(e.message) }
+    try {
+      await saveMyPrice({ price: val === '' ? null : Number(val), splitPrice: spl === '' ? null : Number(spl) })
+      setSaved(true); setTimeout(() => setSaved(false), 1800)
+    } catch (e) { alert(e.message) }
   }
+  const row = { display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }
   return (
     <div className="card keep-ro">
-      <div className="ct">Ціна мого заняття</div>
-      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 10, lineHeight: 1.5 }}>
-        Впиши, скільки береш за одне заняття. Ця сума сама підставиться у форму «Нове заняття», а каса тренера й залу порахується автоматично.
+      <div className="ct">Ціни моїх занять</div>
+      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 12, lineHeight: 1.5 }}>
+        Впиши свої ціни — вони самі підставляться у форму «Нове заняття», а каса тренера й залу порахується автоматично.
       </div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div style={{ fontSize: 13, marginBottom: 6 }}>Одне заняття (один клієнт)</div>
+      <div style={row}>
         <input type="number" min={0} inputMode="numeric" value={val} onChange={e => { setVal(e.target.value); setSaved(false) }} placeholder="напр. 350" style={{ flex: 1 }} />
         <span style={{ color: 'var(--txt2)', fontSize: 14 }}>грн</span>
-        <button className="btn btn-acc" style={{ width: 'auto', flex: 'none', padding: '0 20px', margin: 0 }} onClick={save}>{saved ? 'Збережено' : 'Зберегти'}</button>
       </div>
+      <div style={{ fontSize: 13, marginBottom: 6 }}>Спліт — з кожного клієнта</div>
+      <div style={row}>
+        <input type="number" min={0} inputMode="numeric" value={spl} onChange={e => { setSpl(e.target.value); setSaved(false) }} placeholder="напр. 200" style={{ flex: 1 }} />
+        <span style={{ color: 'var(--txt2)', fontSize: 14 }}>грн</span>
+      </div>
+      <button className="btn btn-acc" style={{ margin: 0 }} onClick={save}>{saved ? 'Збережено' : 'Зберегти'}</button>
     </div>
   )
 }
 
-function SettingsPage({ myColor, saveMyColor, myPrice, saveMyPrice, onReset, onLogout, uname, role, members, pushMembers, updateUserReadOnly, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
+function SettingsPage({ myColor, saveMyColor, myPrice, mySplitPrice, saveMyPrice, onReset, onLogout, uname, role, members, pushMembers, updateUserReadOnly, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('view')
   const [theme, setThemeState] = useState(getThemePref())
@@ -623,7 +633,7 @@ function SettingsPage({ myColor, saveMyColor, myPrice, saveMyPrice, onReset, onL
               ))}
             </div>
           </div>
-          {role === 'trainer' && <MyPriceCard myPrice={myPrice} saveMyPrice={saveMyPrice} />}
+          {role === 'trainer' && <MyPriceCard myPrice={myPrice} mySplitPrice={mySplitPrice} saveMyPrice={saveMyPrice} />}
           <div className="card keep-ro">
             <div className="ct">Акаунт</div>
             <div style={{ fontSize: 14, marginBottom: 12 }}>

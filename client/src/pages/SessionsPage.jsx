@@ -50,6 +50,12 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
     setAmount(cur => (cur === '' || cur === lastAutoPrice.current) ? next : cur)
     lastAutoPrice.current = next
   }, [terms.price])
+  const lastAutoSplit = useRef('')
+  useEffect(() => {
+    const next = terms.splitPrice ? String(terms.splitPrice) : ''
+    setSplitAmount(cur => (cur === '' || cur === lastAutoSplit.current) ? next : cur)
+    lastAutoSplit.current = next
+  }, [terms.splitPrice])
   const SPLIT_FEE = terms.splitFee
 
   const [sType, setSType] = useState('solo')
@@ -231,7 +237,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
     const abonNote = (count - payingCount) > 0 ? ` (${count - payingCount} з абонементу)` : ''
     alert(`✅ Записано! Спліт ${count} ос. · Каса тренера (${trainerName}): ${trainerTotal} грн · Залу: ${hallTotal} грн${abonNote}`)
 
-    setSplitClients([]); setSplitSearch(''); setSplitAmount('')
+    setSplitClients([]); setSplitSearch(''); setSplitAmount(terms.splitPrice ? String(terms.splitPrice) : '')
     setSplitMethod('cash'); setSplitHallMethod('cash')
     setNote(''); setDateMode('today'); setCustomDate('')
   }
