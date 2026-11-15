@@ -31,16 +31,22 @@ export function ChangeCalc({ due }) {
   const g = parseFloat(given) || 0
   const change = g - due
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 14 }}>
-      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/></svg>Скільки дав клієнт (щоб порахувати здачу)</div>
-      <input type="number" value={given} onChange={e => setGiven(e.target.value)} placeholder={`напр: ${Math.ceil(due / 50) * 50}`} min={0} />
+    <div className="change-calc">
+      <div className="cc-head">
+        <span className="cc-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/></svg></span>
+        <div>
+          <div className="cc-title">Здача</div>
+          <div className="cc-sub">Скільки дав клієнт · до сплати {due} грн</div>
+        </div>
+      </div>
+      <input type="number" inputMode="numeric" value={given} onChange={e => setGiven(e.target.value)} placeholder={`напр: ${Math.ceil(due / 50) * 50}`} min={0} />
       {g > 0 && (
         change > 0 ? (
-          <div style={{ marginTop: 8, fontSize: 15, color: 'var(--ylw)', fontWeight: 700 }}>💰 Здача: {change} грн</div>
+          <div className="cc-res warn">Здача: <b>{change} грн</b></div>
         ) : change === 0 ? (
-          <div style={{ marginTop: 8, fontSize: 14, color: 'var(--grn)', fontWeight: 600 }}>✅ Точна сума, без здачі</div>
+          <div className="cc-res ok">Точна сума, без здачі</div>
         ) : (
-          <div style={{ marginTop: 8, fontSize: 13, color: 'var(--red)' }}>Не вистачає {Math.abs(change)} грн</div>
+          <div className="cc-res bad">Не вистачає <b>{Math.abs(change)} грн</b></div>
         )
       )}
     </div>

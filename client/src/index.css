@@ -637,3 +637,16 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 
 .act-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
 .act-row .btn{width:auto;flex:1 1 220px;max-width:420px;margin:0}
+
+/* калькулятор здачі */
+.change-calc{margin:14px 0 4px;padding:14px;border-radius:18px;background:var(--s2);border:1px solid var(--brd)}
+.change-calc input{width:100%;box-sizing:border-box;background:var(--s1)}
+.cc-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.cc-ico{width:34px;height:34px;border-radius:12px;background:color-mix(in srgb,var(--grn) 16%,transparent);color:var(--grn);display:flex;align-items:center;justify-content:center;flex:none}
+.cc-title{font-size:14px;font-weight:700;color:var(--txt)}
+.cc-sub{font-size:12px;color:var(--txt2);margin-top:1px}
+.cc-res{margin-top:10px;padding:10px 14px;border-radius:13px;font-size:14px;font-weight:600}
+.cc-res b{font-size:17px}
+.cc-res.warn{background:color-mix(in srgb,var(--ylw) 16%,transparent);color:var(--ylw)}
+.cc-res.ok{background:color-mix(in srgb,var(--grn) 16%,transparent);color:var(--grn)}
+.cc-res.bad{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}
