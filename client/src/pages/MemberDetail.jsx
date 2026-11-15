@@ -10,7 +10,8 @@ import { trainerColorById } from '../trainerColors'
 
 export default function MemberDetail({
   memberId, members, abons, payments, role, uname,
-  onBack, onSaveMember, onDeleteMember, pushAbons, pushPayment, deletePayment, unlinkCard, loading
+  onBack, onSaveMember, onDeleteMember, pushAbons, pushPayment, deletePayment, unlinkCard, loading,
+  trainers, assignTrainer
 }) {
   const mem = members.find(m => m.id === memberId)
   const [modal, setModal] = useState(null) // 'edit'|'abon'|'pay'|'extend'|'freeze'
@@ -128,6 +129,26 @@ export default function MemberDetail({
                 onClick={() => { if (confirm(`Відв'язати картку від ${mem.name}?`)) unlinkCard(memberId) }}
               >Відв'язати</button>
             )}
+          </div>
+        </div>
+      )}
+
+      {isAdmin && assignTrainer && (
+        <div style={{ padding: '10px 14px 0' }}>
+          <div className="card" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13, color: 'var(--txt2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 016-6h4a6 6 0 016 6v1"/></svg>
+              Тренер клієнта
+            </div>
+            <select
+              value={mem.trainerId || ''}
+              disabled={loading}
+              onChange={e => assignTrainer([memberId], e.target.value || null)}
+              style={{ maxWidth: 260, flex: '1 1 180px' }}
+            >
+              <option value="">— без тренера —</option>
+              {(trainers || []).filter(t => t.role === 'trainer' || t.id === mem.trainerId).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
           </div>
         </div>
       )}

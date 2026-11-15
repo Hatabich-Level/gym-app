@@ -297,6 +297,8 @@ export default function App() {
           pushPayment={store.pushPayment}
           deletePayment={deletePayment}
           unlinkCard={store.unlinkCard}
+          trainers={store.trainers}
+          assignTrainer={store.assignTrainer}
           loading={store.loading}
         />
       )}
