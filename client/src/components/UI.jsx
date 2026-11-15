@@ -34,10 +34,7 @@ export function ChangeCalc({ due }) {
     <div className="change-calc">
       <div className="cc-head">
         <span className="cc-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/></svg></span>
-        <div>
-          <div className="cc-title">Здача</div>
-          <div className="cc-sub">Скільки дав клієнт · до сплати {due} грн</div>
-        </div>
+        <div className="cc-title">Скільки дав клієнт <span className="cc-sub">· до сплати {due} грн</span></div>
       </div>
       <input type="number" inputMode="numeric" value={given} onChange={e => setGiven(e.target.value)} placeholder={`напр: ${Math.ceil(due / 50) * 50}`} min={0} />
       {g > 0 && (

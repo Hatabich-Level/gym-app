@@ -650,3 +650,14 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 .cc-res.warn{background:color-mix(in srgb,var(--ylw) 16%,transparent);color:var(--ylw)}
 .cc-res.ok{background:color-mix(in srgb,var(--grn) 16%,transparent);color:var(--grn)}
 .cc-res.bad{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}
+
+/* калькулятор здачі: компактніший + відступи */
+.change-calc{margin:20px 0 18px;padding:10px 12px;border-radius:16px}
+.cc-head{gap:9px;margin-bottom:8px}
+.cc-ico{width:26px;height:26px;border-radius:9px}
+.cc-ico svg{width:14px;height:14px}
+.cc-title{font-size:13px;font-weight:600;color:var(--txt)}
+.cc-sub{display:inline;font-size:12px;font-weight:400;margin:0}
+.change-calc input{height:42px;padding:0 14px;font-size:15px;border-radius:12px}
+.cc-res{margin-top:8px;padding:7px 12px;border-radius:11px;font-size:13px}
+.cc-res b{font-size:15px}
