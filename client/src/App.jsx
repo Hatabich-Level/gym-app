@@ -375,6 +375,7 @@ export default function App() {
               role={role}
               uid={auth.uid}
               assignTrainer={store.assignTrainer}
+              uname={uname} myTerms={store.myTerms} pushAbons={store.pushAbons} pushPayment={store.pushPayment}
               onOpen={(id) => setMemberDetailId(id)}
             />
           )}

@@ -65,9 +65,6 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
   const [splitMethod, setSplitMethod] = useState('cash')
   const [splitHallMethod, setSplitHallMethod] = useState('cash')
 
-  // Trainer abon modal
-  const [showAbonModal, setShowAbonModal] = useState(false)
-
   const sessionDate = dateMode === 'today' ? TODAY : (customDate || TODAY)
   const trainerAbon = clientId ? getActiveTrainerAbon(clientId, abons) : null
   const trainerAbonExpired = (clientId && !trainerAbon)
@@ -464,35 +461,48 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
         </button>
       </div>
 
-      {/* Trainer abon sale card */}
-      <div className="card">
-        <div className="ct">🎫 Абонемент від тренера</div>
-        <div style={{ fontSize: 13, color: 'var(--txt2)', marginBottom: 12 }}>
-          Продаж пакету занять клієнту. Заняття списуються автоматично при відмітці "Один" з включеним списанням.
-        </div>
-        <button className="btn btn-acc btn-sm" onClick={() => setShowAbonModal(true)}>+ Продати абонемент на заняття</button>
-      </div>
-
       {/* Today sessions (stats + list) */}
       <TodaySessionsBlock payments={payments} uname={uname} role={role} />
 
-      {/* Trainer abon modal */}
-      {showAbonModal && (
+    </div>
+  )
+}
+
+// ── Кнопка "Продати абонемент на заняття" (живе на сторінці тренерів) ─────────
+export function SellTrainerAbon({ members, abons, role, uname, myTerms, trainers, pushAbons, pushPayment }) {
+  const isAdminView = role !== 'trainer'
+  const trainerList = useMemo(() => (trainers || []).filter(t => t.role === 'trainer'), [trainers])
+  const [trainerId, setTrainerId] = useState('')
+  const [open, setOpen] = useState(false)
+  const selTrainer = isAdminView ? trainerList.find(t => t.id === trainerId) || null : null
+  const terms = trainerTerms(isAdminView ? selTrainer : myTerms)
+  const trainerName = isAdminView ? (selTrainer ? selTrainer.name : (uname || 'Адмін')) : (uname || 'Тренер')
+  function requireTrainer() {
+    if (isAdminView && trainerList.length > 0 && !selTrainer) { alert('Виберіть тренера, чий це абонемент'); return false }
+    return true
+  }
+  const picker = (isAdminView && trainerList.length > 0) ? (
+    <FRow label="Тренер (чий абонемент)">
+      <select value={trainerId} onChange={e => setTrainerId(e.target.value)}>
+        <option value="">— виберіть тренера —</option>
+        {trainerList.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </select>
+    </FRow>
+  ) : null
+  return (
+    <>
+      <button className="sell-btn" onClick={() => setOpen(true)}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Продати абонемент
+      </button>
+      {open && (
         <TrainerAbonModal
-          members={members}
-          abons={abons}
-          uname={uname}
-          role={role}
-          terms={terms}
-          trainerName={trainerName}
-          requireTrainer={requireTrainer}
-          trainerPicker={trainerSelect('Тренер (чий абонемент)')}
-          pushAbons={pushAbons}
-          pushPayment={pushPayment}
-          onClose={() => setShowAbonModal(false)}
+          members={members} abons={abons} uname={uname} role={role} terms={terms}
+          trainerName={trainerName} requireTrainer={requireTrainer} trainerPicker={picker}
+          pushAbons={pushAbons} pushPayment={pushPayment} onClose={() => setOpen(false)}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -523,16 +533,16 @@ function TodaySessionsBlock({ payments, uname, role }) {
     <>
       {isTrainerView ? (
         <div className="stats3">
-          <div className="sc"><div className="sv" style={{ color: 'var(--grn)' }}>{cash}</div><div className="sl">💵 Готівка</div></div>
-          <div className="sc"><div className="sv" style={{ color: 'var(--acc)' }}>{card}</div><div className="sl">💳 Картка</div></div>
-          <div className="sc"><div className="sv" style={{ color: 'var(--grn)', fontWeight: 700 }}>{trainerCash}</div><div className="sl">💵 Каса тренера</div></div>
+          <div className="sc"><div className="sv" style={{ color: 'var(--grn)' }}>{cash}</div><div className="sl"><Ico n="cash" size={14} />Готівка</div></div>
+          <div className="sc"><div className="sv" style={{ color: 'var(--acc)' }}>{card}</div><div className="sl"><Ico n="card" size={14} />Картка</div></div>
+          <div className="sc"><div className="sv" style={{ color: 'var(--grn)', fontWeight: 700 }}>{trainerCash}</div><div className="sl"><Ico n="cash" size={14} />Каса тренера</div></div>
         </div>
       ) : (
         <div className="stats3">
-          <div className="sc"><div className="sv" style={{ color: 'var(--grn)' }}>{hallCash}</div><div className="sl">💵 Готівка (зал)</div></div>
-          <div className="sc"><div className="sv" style={{ color: 'var(--acc)' }}>{hallCard}</div><div className="sl">💳 Картка (зал)</div></div>
+          <div className="sc"><div className="sv" style={{ color: 'var(--grn)' }}>{hallCash}</div><div className="sl"><Ico n="cash" size={14} />Готівка (зал)</div></div>
+          <div className="sc"><div className="sv" style={{ color: 'var(--acc)' }}>{hallCard}</div><div className="sl"><Ico n="card" size={14} />Картка (зал)</div></div>
           {hallPending > 0 ? (
-            <div className="sc"><div className="sv" style={{ color: 'var(--ylw)', fontWeight: 700 }}>{hallPending}</div><div className="sl">⚠️ Непідтверджено</div></div>
+            <div className="sc"><div className="sv" style={{ color: 'var(--ylw)', fontWeight: 700 }}>{hallPending}</div><div className="sl">Непідтверджено</div></div>
           ) : (
             <div className="sc"><div className="sv">{hallCash + hallCard}</div><div className="sl">Всього зала сьогодні</div></div>
           )}
@@ -540,7 +550,7 @@ function TodaySessionsBlock({ payments, uname, role }) {
       )}
 
       {today.length === 0 ? (
-        <div className="card"><div className="empty">Сьогодні занять ще не було</div></div>
+        <div className="card"><div className="empty"><Ico n="cal" size={28} /><div style={{ marginTop: 8 }}>Сьогодні занять ще не було</div></div></div>
       ) : (
         <div className="card">
           <div className="ct">Заняття сьогодні ({today.length})</div>

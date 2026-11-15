@@ -5,6 +5,7 @@ import {
 import { TDot } from '../components/Extras'
 import { trainerColorById } from '../trainerColors'
 import { Ava, Empty, Modal, Tabs } from '../components/UI'
+import { SellTrainerAbon } from './SessionsPage'
 
 const NONE = '__none__'
 
@@ -48,7 +49,7 @@ function TrainerChip({ info }) {
   return <span className="ai-tag tag-gray">🎫 Тренер: немає</span>
 }
 
-export default function TrainerClients({ members, abons, trainers: allAccounts, role, uid, assignTrainer, onOpen }) {
+export default function TrainerClients({ members, abons, trainers: allAccounts, role, uid, assignTrainer, onOpen, uname, myTerms, pushAbons, pushPayment }) {
   const isTrainerRole = role === 'trainer'
   // Сервер віддає всі акаунти. У вкладках показуємо лише тренерів, а також
   // тих адмінів/власника, за ким уже закріплені клієнти (щоб ті не "зникли").
@@ -99,8 +100,12 @@ export default function TrainerClients({ members, abons, trainers: allAccounts, 
 
   return (
     <div className="pg">
-      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>
-        {isTrainerRole ? '👥 Мої клієнти' : '👔 Клієнти по тренерах'}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>
+          {isTrainerRole ? '👥 Мої клієнти' : '👔 Клієнти по тренерах'}
+        </div>
+        <SellTrainerAbon members={members} abons={abons} role={role} uname={uname} myTerms={myTerms}
+          trainers={allAccounts} pushAbons={pushAbons} pushPayment={pushPayment} />
       </div>
 
       {!isTrainerRole && (

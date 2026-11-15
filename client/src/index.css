@@ -629,3 +629,8 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 .chip.on-cash{background:color-mix(in srgb,var(--grn) 15%,var(--s1));color:var(--grn);border-color:color-mix(in srgb,var(--grn) 55%,transparent)}
 .chip.on-card{background:color-mix(in srgb,var(--ice) 15%,var(--s1));color:var(--ice);border-color:color-mix(in srgb,var(--ice) 55%,transparent)}
 .btn.btn-grn{display:flex;align-items:center;justify-content:center;gap:9px}
+
+.sell-btn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px;border-radius:15px;border:none;background:var(--acc);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 16px color-mix(in srgb,var(--acc) 35%,transparent);transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
+.sell-btn:active{transform:scale(.94)}
+.sc .sl{display:flex;align-items:center;gap:6px}
+.empty .ico{opacity:.5}
