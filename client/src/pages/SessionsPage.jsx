@@ -4,14 +4,14 @@ import {
   HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning, trainerTerms
 } from '../utils'
 import { FRow, Ava, MethodPill, ChangeCalc } from '../components/UI'
-import { TDot } from '../components/Extras'
+import { TDot, Ico } from '../components/Extras'
 import { trainerColorByName } from '../trainerColors'
 
 function MethodToggle({ value, onChange }) {
   return (
     <div className="method-toggle" style={{ marginBottom: 14 }}>
-      <button className={`method-btn ${value === 'cash' ? 'on-cash' : ''}`} onClick={() => onChange('cash')}>💵 Готівка</button>
-      <button className={`method-btn ${value === 'card' ? 'on-card' : ''}`} onClick={() => onChange('card')}>💳 Картка</button>
+      <button className={`method-btn ${value === 'cash' ? 'on-cash' : ''}`} onClick={() => onChange('cash')}><Ico n="cash" />Готівка</button>
+      <button className={`method-btn ${value === 'card' ? 'on-card' : ''}`} onClick={() => onChange('card')}><Ico n="card" />Картка</button>
     </div>
   )
 }
@@ -245,8 +245,8 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
         {/* Тип */}
         <FRow label="Тип заняття">
           <div className="method-toggle">
-            <button className={`method-btn ${sType === 'solo' ? 'on-cash' : ''}`} onClick={() => setSType('solo')}>👤 Один</button>
-            <button className={`method-btn ${sType === 'split' ? 'on-card' : ''}`} onClick={() => setSType('split')}>👥 Спліт</button>
+            <button className={`method-btn ${sType === 'solo' ? 'on-cash' : ''}`} onClick={() => setSType('solo')}><Ico n="user" />Один</button>
+            <button className={`method-btn ${sType === 'split' ? 'on-card' : ''}`} onClick={() => setSType('split')}><Ico n="users" />Спліт</button>
           </div>
         </FRow>
 
@@ -392,19 +392,19 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
             <div className="chip-row">
               <div className="chip-group">
                 <span className="chip-label">Клієнт→тренер</span>
-                <button className={`chip ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵</button>
-                <button className={`chip ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳</button>
+                <button className={`chip ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}><Ico n="cash" />Готівка</button>
+                <button className={`chip ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}><Ico n="card" />Картка</button>
               </div>
               {role !== 'trainer' ? (
                 <div className="chip-group">
                   <span className="chip-label">Тренер→зал</span>
-                  <button className={`chip ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}>💵</button>
-                  <button className={`chip ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}>💳</button>
+                  <button className={`chip ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}><Ico n="cash" />Готівка</button>
+                  <button className={`chip ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}><Ico n="card" />Картка</button>
                 </div>
               ) : (
                 <div className="chip-group">
                   <span className="chip-label">Тренер→зал</span>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)' }}>🕓 підтвердить адмін</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Ico n="clock" size={14} />підтвердить адмін</span>
                 </div>
               )}
             </div>
@@ -419,19 +419,19 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
             <div className="chip-row">
               <div className="chip-group">
                 <span className="chip-label">Клієнт→тренер</span>
-                <button className={`chip ${splitMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitMethod('cash')}>💵</button>
-                <button className={`chip ${splitMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitMethod('card')}>💳</button>
+                <button className={`chip ${splitMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitMethod('cash')}><Ico n="cash" />Готівка</button>
+                <button className={`chip ${splitMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitMethod('card')}><Ico n="card" />Картка</button>
               </div>
               {role !== 'trainer' ? (
                 <div className="chip-group">
                   <span className="chip-label">Тренер→зал</span>
-                  <button className={`chip ${splitHallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitHallMethod('cash')}>💵</button>
-                  <button className={`chip ${splitHallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitHallMethod('card')}>💳</button>
+                  <button className={`chip ${splitHallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setSplitHallMethod('cash')}><Ico n="cash" />Готівка</button>
+                  <button className={`chip ${splitHallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setSplitHallMethod('card')}><Ico n="card" />Картка</button>
                 </div>
               ) : (
                 <div className="chip-group">
                   <span className="chip-label">Тренер→зал</span>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)' }}>🕓 підтвердить адмін</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Ico n="clock" size={14} />підтвердить адмін</span>
                 </div>
               )}
             </div>
@@ -446,8 +446,8 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
           <div className="frow">
             <div className="flabel">Дата заняття</div>
             <div className="method-toggle">
-              <button className={`method-btn ${dateMode === 'today' ? 'on-cash' : ''}`} onClick={() => setDateMode('today')}>📅 Сьогодні</button>
-              <button className={`method-btn ${dateMode === 'past' ? 'on-cash' : ''}`} onClick={() => setDateMode('past')}>🕓 Задня дата</button>
+              <button className={`method-btn ${dateMode === 'today' ? 'on-cash' : ''}`} onClick={() => setDateMode('today')}><Ico n="cal" />Сьогодні</button>
+              <button className={`method-btn ${dateMode === 'past' ? 'on-cash' : ''}`} onClick={() => setDateMode('past')}><Ico n="clock" />Задня дата</button>
             </div>
             {dateMode === 'past' && (
               <input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)} max={TODAY} style={{ marginTop: 8 }} />
@@ -460,7 +460,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
         </div>
 
         <button className="btn btn-grn" onClick={sType === 'solo' ? saveSolo : saveSplit}>
-          💾 Записати заняття
+          <Ico n="save" size={18} />Записати заняття
         </button>
       </div>
 
@@ -735,15 +735,15 @@ function TrainerAbonModal({ members, abons, uname, role, terms, trainerName, req
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 6 }}>Клієнт→тренер</div>
                   <div className="method-toggle" style={{ marginBottom: 0 }}>
-                    <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}>💵</button>
-                    <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}>💳</button>
+                    <button className={`method-btn ${method === 'cash' ? 'on-cash' : ''}`} onClick={() => setMethod('cash')}><Ico n="cash" />Готівка</button>
+                    <button className={`method-btn ${method === 'card' ? 'on-card' : ''}`} onClick={() => setMethod('card')}><Ico n="card" />Картка</button>
                   </div>
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 6 }}>Тренер→зал</div>
                   <div className="method-toggle" style={{ marginBottom: 0 }}>
-                    <button className={`method-btn ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}>💵</button>
-                    <button className={`method-btn ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}>💳</button>
+                    <button className={`method-btn ${hallMethod === 'cash' ? 'on-cash' : ''}`} onClick={() => setHallMethod('cash')}><Ico n="cash" />Готівка</button>
+                    <button className={`method-btn ${hallMethod === 'card' ? 'on-card' : ''}`} onClick={() => setHallMethod('card')}><Ico n="card" />Картка</button>
                   </div>
                 </div>
               </div>

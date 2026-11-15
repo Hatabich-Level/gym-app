@@ -614,3 +614,18 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 .pay-btn.p-cash{background:color-mix(in srgb,var(--grn) 16%,transparent);color:var(--grn)}
 .pay-btn.p-card{background:color-mix(in srgb,var(--ice) 16%,transparent);color:var(--ice)}
 @media (max-width:380px){.pay-btn span{display:none}.pay-btn{padding:0 11px}}
+
+/* форми: кнопки вибору (тип, оплата, дата) у новому стилі */
+.method-toggle{gap:10px}
+.method-btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 14px;border-radius:16px;border:1.5px solid transparent;background:var(--s2);color:var(--txt2);font-size:15px;font-weight:700;box-shadow:none;transition:background .2s,color .2s,border-color .2s,transform .2s cubic-bezier(.34,1.56,.64,1)}
+.method-btn:active{transform:scale(.96)}
+.method-btn.on-cash{background:color-mix(in srgb,var(--grn) 15%,var(--s1));color:var(--grn);border-color:color-mix(in srgb,var(--grn) 55%,transparent)}
+.method-btn.on-card{background:color-mix(in srgb,var(--ice) 15%,var(--s1));color:var(--ice);border-color:color-mix(in srgb,var(--ice) 55%,transparent)}
+.ico{flex:none}
+.chip-row{gap:12px 18px}
+.chip-group{flex-wrap:wrap;gap:6px}
+.chip-label{width:100%;font-size:12px;font-weight:600;color:var(--txt2);margin-bottom:0}
+.chip{height:38px;padding:0 14px;border-radius:13px;border:1.5px solid transparent;background:var(--s2);font-size:13px;font-weight:700;gap:6px;transition:background .2s,color .2s,border-color .2s,transform .2s cubic-bezier(.34,1.56,.64,1)}
+.chip.on-cash{background:color-mix(in srgb,var(--grn) 15%,var(--s1));color:var(--grn);border-color:color-mix(in srgb,var(--grn) 55%,transparent)}
+.chip.on-card{background:color-mix(in srgb,var(--ice) 15%,var(--s1));color:var(--ice);border-color:color-mix(in srgb,var(--ice) 55%,transparent)}
+.btn.btn-grn{display:flex;align-items:center;justify-content:center;gap:9px}

@@ -32,7 +32,7 @@ export function ChangeCalc({ due }) {
   const change = g - due
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 'var(--r2)', padding: '10px 12px', marginBottom: 14 }}>
-      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 6 }}>💵 Скільки дав клієнт (щоб порахувати здачу)</div>
+      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/></svg>Скільки дав клієнт (щоб порахувати здачу)</div>
       <input type="number" value={given} onChange={e => setGiven(e.target.value)} placeholder={`напр: ${Math.ceil(due / 50) * 50}`} min={0} />
       {g > 0 && (
         change > 0 ? (

@@ -146,3 +146,16 @@ export function TDot({ color }) {
   if (!color) return null
   return <span className="tdot" style={{ background: color }} />
 }
+
+const ICO = {
+  cash: <><rect x="2" y="6" width="20" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/></>,
+  card: <><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></>,
+  user: <><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 016-6h4a6 6 0 016 6v1"/></>,
+  users: <><circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a5 5 0 015-5h4a5 5 0 015 5v1"/><path d="M16 4.5a3.5 3.5 0 010 7M22 21v-1a5 5 0 00-3.5-4.8"/></>,
+  cal: <><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></>,
+  clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  save: <><path d="M5 3h11l4 4v13a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></>,
+}
+export function Ico({ n, size = 17 }) {
+  return <svg className="ico" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICO[n]}</svg>
+}
