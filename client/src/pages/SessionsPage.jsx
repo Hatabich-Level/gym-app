@@ -491,9 +491,8 @@ export function SellTrainerAbon({ members, abons, role, uname, myTerms, trainers
   ) : null
   return (
     <>
-      <button className="sell-btn" onClick={() => setOpen(true)}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Продати абонемент
+      <button className="btn btn-acc" onClick={() => setOpen(true)}>
+        + Продати абонемент на заняття
       </button>
       {open && (
         <TrainerAbonModal

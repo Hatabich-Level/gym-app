@@ -100,12 +100,8 @@ export default function TrainerClients({ members, abons, trainers: allAccounts, 
 
   return (
     <div className="pg">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>
-          {isTrainerRole ? '👥 Мої клієнти' : '👔 Клієнти по тренерах'}
-        </div>
-        <SellTrainerAbon members={members} abons={abons} role={role} uname={uname} myTerms={myTerms}
-          trainers={allAccounts} pushAbons={pushAbons} pushPayment={pushPayment} />
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>
+        {isTrainerRole ? '👥 Мої клієнти' : '👔 Клієнти по тренерах'}
       </div>
 
       {!isTrainerRole && (
@@ -129,11 +125,15 @@ export default function TrainerClients({ members, abons, trainers: allAccounts, 
         </div>
       )}
 
-      {!isTrainerRole && trainerId !== NONE && (
-        <button className="btn btn-acc" style={{ marginBottom: 12 }} onClick={() => setShowAdd(true)}>
-          + Додати клієнтів цьому тренеру
-        </button>
-      )}
+      <div className="act-row">
+        {!isTrainerRole && trainerId !== NONE && (
+          <button className="btn btn-acc" onClick={() => setShowAdd(true)}>
+            + Додати клієнтів цьому тренеру
+          </button>
+        )}
+        <SellTrainerAbon members={members} abons={abons} role={role} uname={uname} myTerms={myTerms}
+          trainers={allAccounts} pushAbons={pushAbons} pushPayment={pushPayment} />
+      </div>
 
       {rows.length === 0 ? (
         <div className="card">

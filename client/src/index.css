@@ -634,3 +634,6 @@ select:focus,input:focus,.sr input:focus{border-color:var(--acc);box-shadow:0 0 
 .sell-btn:active{transform:scale(.94)}
 .sc .sl{display:flex;align-items:center;gap:6px}
 .empty .ico{opacity:.5}
+
+.act-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.act-row .btn{width:auto;flex:1 1 220px;max-width:420px;margin:0}
