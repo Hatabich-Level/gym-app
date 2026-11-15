@@ -405,6 +405,7 @@ export default function App() {
               onReset={store.load} isOwner={isOwner}
               onLogout={handleLogout} uname={uname} role={role}
               members={store.members} pushMembers={store.pushMembers} updateUserReadOnly={store.updateUserReadOnly}
+              myPrice={store.myTerms && store.myTerms.sessionPrice} saveMyPrice={store.updateMyPrice}
               myColor={((store.trainers || []).find(t => t.id === auth.uid) || (store.users || []).find(u => u.id === auth.uid) || {}).color || ''}
               saveMyColor={(c) => store.updateMyColor(auth.uid, c)}
               users={store.users} auditLog={store.auditLog}
@@ -530,7 +531,29 @@ function NewMemberModal({ onSave, onClose }) {
 }
 
 // ── Settings page ─────────────────────────────────────────────────────────────
-function SettingsPage({ myColor, saveMyColor, onReset, onLogout, uname, role, members, pushMembers, updateUserReadOnly, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
+function MyPriceCard({ myPrice, saveMyPrice }) {
+  const [val, setVal] = useState(myPrice ? String(myPrice) : '')
+  const [saved, setSaved] = useState(false)
+  async function save() {
+    try { await saveMyPrice(val === '' ? null : Number(val)); setSaved(true); setTimeout(() => setSaved(false), 1800) }
+    catch (e) { alert(e.message) }
+  }
+  return (
+    <div className="card keep-ro">
+      <div className="ct">Ціна мого заняття</div>
+      <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 10, lineHeight: 1.5 }}>
+        Впиши, скільки береш за одне заняття. Ця сума сама підставиться у форму «Нове заняття», а каса тренера й залу порахується автоматично.
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <input type="number" min={0} inputMode="numeric" value={val} onChange={e => { setVal(e.target.value); setSaved(false) }} placeholder="напр. 350" style={{ flex: 1 }} />
+        <span style={{ color: 'var(--txt2)', fontSize: 14 }}>грн</span>
+        <button className="btn btn-acc" style={{ width: 'auto', flex: 'none', padding: '0 20px', margin: 0 }} onClick={save}>{saved ? 'Збережено' : 'Зберегти'}</button>
+      </div>
+    </div>
+  )
+}
+
+function SettingsPage({ myColor, saveMyColor, myPrice, saveMyPrice, onReset, onLogout, uname, role, members, pushMembers, updateUserReadOnly, isOwner, users, auditLog, createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, abons, pushAbons, currentUid }) {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('view')
   const [theme, setThemeState] = useState(getThemePref())
@@ -600,6 +623,7 @@ function SettingsPage({ myColor, saveMyColor, onReset, onLogout, uname, role, me
               ))}
             </div>
           </div>
+          {role === 'trainer' && <MyPriceCard myPrice={myPrice} saveMyPrice={saveMyPrice} />}
           <div className="card keep-ro">
             <div className="ct">Акаунт</div>
             <div style={{ fontSize: 14, marginBottom: 12 }}>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
   TODAY, fmtDate, uid, nowTime, getActiveTrainerAbon, getActiveAbon, isTrainerAbonExpired,
   HALL_FEE, SPLIT_HALL_FEE, calcTrainerEarning, calcHallEarning, trainerTerms
@@ -42,6 +42,14 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
     </FRow>
   ) : null
   const FEE = terms.fee
+
+  // Ціна заняття тренера підставляється сама (поки поле порожнє або не змінене вручну)
+  const lastAutoPrice = useRef('')
+  useEffect(() => {
+    const next = terms.price ? String(terms.price) : ''
+    setAmount(cur => (cur === '' || cur === lastAutoPrice.current) ? next : cur)
+    lastAutoPrice.current = next
+  }, [terms.price])
   const SPLIT_FEE = terms.splitFee
 
   const [sType, setSType] = useState('solo')
@@ -165,7 +173,7 @@ export default function SessionsPage({ members, abons, payments, role, uname, my
     await pushPayment(p)
 
     alert(`✅ Записано! ${useAbon ? 'Списано з абонементу' : `Клієнт: ${totalAmount} грн · Каса тренера (${trainerName}): ${trainerEarning} грн`}`)
-    clearClient(); setAmount(''); setNote('')
+    clearClient(); setAmount(terms.price ? String(terms.price) : ''); setNote('')
     setMethod('cash'); setHallMethod('cash')
     setDateMode('today'); setCustomDate('')
   }

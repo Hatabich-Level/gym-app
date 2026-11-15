@@ -148,7 +148,8 @@ export function trainerTerms(user) {
     ? user.hallFee : HALL_FEE
   const splitFee = (user && typeof user.splitHallFee === 'number' && user.splitHallFee >= 0)
     ? user.splitHallFee : SPLIT_HALL_FEE
-  return { pct, fee, splitFee }
+  const price = (user && typeof user.sessionPrice === 'number' && user.sessionPrice > 0) ? user.sessionPrice : null
+  return { pct, fee, splitFee, price }
 }
 
 export function findTrainerUser(users, role, uname) {

@@ -198,6 +198,14 @@ export function useStore() {
     } finally { setLoading(false) }
   }, [])
 
+  const updateMyPrice = useCallback(async (price) => {
+    setLoading(true)
+    try {
+      const res = await api('/me/price', 'POST', { price })
+      setMyTerms(prev => ({ ...(prev || {}), sessionPrice: res.sessionPrice ?? undefined }))
+    } finally { setLoading(false) }
+  }, [])
+
   const updateUserReadOnly = useCallback(async (id, ro) => {
     setLoading(true)
     try {
@@ -255,7 +263,7 @@ export function useStore() {
     load, refresh, pushMembers, deleteMembers, deleteMember,
     pushAbons, pushPayment, deletePayment,
     saveManualDebt, payManualDebt, deleteManualDebt,
-    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, updateUserReadOnly, updateMyColor, unlinkCard, assignTrainer,
+    createUser, deleteUser, changeUserPassword, updateUserColor, updateUserTerms, updateUserReadOnly, updateMyColor, updateMyPrice, unlinkCard, assignTrainer,
     setAbons, setMembers
   }
 }
